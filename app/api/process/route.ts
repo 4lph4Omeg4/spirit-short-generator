@@ -96,7 +96,7 @@ export async function POST(req: Request) {
             try {
                 // Using the Gateway client (textClient) for images as well
                 const imageResponse = await textClient.images.generate({
-                    model: "google/gemini-2.5-flash-image",
+                    model: "google/gemini-2.5-flash-image-preview",
                     prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
                     n: 1,
                     size: "1024x1792",
