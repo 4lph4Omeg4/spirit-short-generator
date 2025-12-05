@@ -57,28 +57,28 @@ export async function POST(req: Request) {
                     ],
                 }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Structured Summary Done"); return res.choices[0]?.message?.content || ""; }),
 
-                // 2. Spiritual Essence (Perplexity) - Switched from Gemini due to Gateway 404s
+                // 2. Spiritual Essence (Perplexity) - Using URL directly
                 client.chat.completions.create({
                     model: 'perplexity/sonar-pro',
                     messages: [
                         { role: 'system', content: 'You are a spiritual alchemist.' },
-                        { role: 'user', content: `Rewrite the core message of this transcript into a poetic, resonant spiritual essence. Focus on the energy and the soul of the message. Transcript: ${transcript.slice(0, 15000)}` }
+                        { role: 'user', content: `Rewrite the core message of the video at this URL into a poetic, resonant spiritual essence. Focus on the energy and the soul of the message. URL: ${url}` }
                     ],
                 }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Spiritual Essence Done"); return res.choices[0]?.message?.content || ""; }),
 
-                // 3. Quote (Perplexity)
+                // 3. Quote (Perplexity) - Using URL directly
                 client.chat.completions.create({
                     model: 'perplexity/sonar-pro',
                     messages: [
-                        { role: 'user', content: `Extract the single most powerful, short, and inspirational quote from this transcript. Return ONLY the quote text, nothing else. Transcript: ${transcript.slice(0, 15000)}` }
+                        { role: 'user', content: `Extract the single most powerful, short, and inspirational quote from the video at this URL. Return ONLY the quote text, nothing else. URL: ${url}` }
                     ],
                 }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Quote Done"); return res.choices[0]?.message?.content || ""; }),
 
-                // 4. Visual Prompt (Perplexity)
+                // 4. Visual Prompt (Perplexity) - Using URL directly
                 client.chat.completions.create({
                     model: 'perplexity/sonar-pro',
                     messages: [
-                        { role: 'user', content: `Based on the spiritual essence of this transcript, describe a single, abstract, cinematic, and ethereal image that represents the soul of this message. The image should be suitable for a vertical 9:16 video background. Describe lighting, colors, and mood. Keep it under 50 words. Transcript: ${transcript.slice(0, 15000)}` }
+                        { role: 'user', content: `Based on the video at this URL: ${url}, describe a single, abstract, cinematic, and ethereal image that represents the soul of this message. The image should be suitable for a vertical 9:16 video background. Describe lighting, colors, and mood. Keep it under 50 words.` }
                     ],
                 }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Visual Prompt Done"); return res.choices[0]?.message?.content || ""; }),
             ]);
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
             let imageUrl = null;
             try {
                 const imageResponse = await client.images.generate({
-                    model: "dall-e-3",
+                    model: "openai/dall-e-3",
                     prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
                     n: 1,
                     size: "1024x1792",
