@@ -57,30 +57,30 @@ export async function POST(req: Request) {
                     ],
                 }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Structured Summary Done"); return res.choices[0]?.message?.content || ""; }),
 
-                // 2. Spiritual Essence (Google Gemini) - Reverting to standard model name
+                // 2. Spiritual Essence (Perplexity) - Switched from Gemini due to Gateway 404s
                 client.chat.completions.create({
-                    model: 'gemini-1.5-pro',
+                    model: 'perplexity/sonar-pro',
                     messages: [
                         { role: 'system', content: 'You are a spiritual alchemist.' },
                         { role: 'user', content: `Rewrite the core message of this transcript into a poetic, resonant spiritual essence. Focus on the energy and the soul of the message. Transcript: ${transcript.slice(0, 15000)}` }
                     ],
-                }, { headers: { 'X-Vercel-AI-Provider': 'google' } }).then(res => { console.log("Spiritual Essence Done"); return res.choices[0]?.message?.content || ""; }),
+                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Spiritual Essence Done"); return res.choices[0]?.message?.content || ""; }),
 
-                // 3. Quote (Google Gemini) - Reverting to standard model name
+                // 3. Quote (Perplexity)
                 client.chat.completions.create({
-                    model: 'gemini-1.5-flash',
+                    model: 'perplexity/sonar-pro',
                     messages: [
                         { role: 'user', content: `Extract the single most powerful, short, and inspirational quote from this transcript. Return ONLY the quote text, nothing else. Transcript: ${transcript.slice(0, 15000)}` }
                     ],
-                }, { headers: { 'X-Vercel-AI-Provider': 'google' } }).then(res => { console.log("Quote Done"); return res.choices[0]?.message?.content || ""; }),
+                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Quote Done"); return res.choices[0]?.message?.content || ""; }),
 
-                // 4. Visual Prompt (Google Gemini) - Reverting to standard model name
+                // 4. Visual Prompt (Perplexity)
                 client.chat.completions.create({
-                    model: 'gemini-1.5-flash',
+                    model: 'perplexity/sonar-pro',
                     messages: [
                         { role: 'user', content: `Based on the spiritual essence of this transcript, describe a single, abstract, cinematic, and ethereal image that represents the soul of this message. The image should be suitable for a vertical 9:16 video background. Describe lighting, colors, and mood. Keep it under 50 words. Transcript: ${transcript.slice(0, 15000)}` }
                     ],
-                }, { headers: { 'X-Vercel-AI-Provider': 'google' } }).then(res => { console.log("Visual Prompt Done"); return res.choices[0]?.message?.content || ""; }),
+                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Visual Prompt Done"); return res.choices[0]?.message?.content || ""; }),
             ]);
 
             console.log("Text Generation Complete. Starting Image Generation...");
