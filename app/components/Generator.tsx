@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Youtube, Loader2, Sparkles, FileText, Quote, Play } from "lucide-react";
+import { ArrowRight, Youtube, Loader2, Sparkles, FileText, Quote, Image as ImageIcon } from "lucide-react";
 import clsx from "clsx";
 
 type SummaryType = "structured" | "spiritual" | "quote";
@@ -18,6 +18,8 @@ interface VideoData {
         structured: string;
         spiritual: string;
         quote: string;
+        image_url: string;
+        image_prompt: string;
     };
 }
 
@@ -162,37 +164,48 @@ export default function Generator() {
                                     </motion.div>
                                 </div>
                             </div>
+
+                            {/* Image Prompt Section */}
+                            <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+                                <h4 className="font-semibold text-primary flex items-center gap-2 mb-2">
+                                    <ImageIcon className="w-4 h-4" /> Visual Prompt
+                                </h4>
+                                <p className="text-sm text-muted-foreground italic">
+                                    &quot;{data.summaries.image_prompt}&quot;
+                                </p>
+                            </div>
                         </div>
 
-                        {/* Right Column: Preview */}
+                        {/* Right Column: Generated Visual */}
                         <div className="space-y-6">
                             <h3 className="text-xl font-semibold flex items-center gap-2">
-                                <Play className="w-5 h-5 text-primary" /> Generated Short
+                                <Sparkles className="w-5 h-5 text-primary" /> Generated Visual Essence
                             </h3>
-                            <div className="aspect-[9/16] bg-black rounded-2xl border border-border overflow-hidden relative group">
-                                {/* Mock Video Player */}
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="w-full h-full bg-secondary/20 flex flex-col items-center justify-center text-muted-foreground">
-                                        <Sparkles className="w-12 h-12 mb-4 text-primary/50" />
-                                        <p>Video Preview Generating...</p>
-                                        <p className="text-xs opacity-50 mt-2">(FFmpeg processing placeholder)</p>
-                                    </div>
-                                </div>
+                            <div className="aspect-[9/16] bg-black rounded-2xl border border-border overflow-hidden relative group shadow-2xl">
+                                {/* Generated Image */}
+                                <img
+                                    src={data.summaries.image_url}
+                                    alt="Generated Spiritual Essence"
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                />
 
-                                {/* Overlay Mock */}
-                                <div className="absolute bottom-10 left-6 right-6 text-center">
-                                    <p className="text-white text-xl font-bold drop-shadow-lg font-serif italic">
-                                        "{data.summaries.quote}"
+                                {/* Overlay Text */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-8 text-center">
+                                    <p className="text-white text-xl font-bold drop-shadow-lg font-serif italic leading-relaxed">
+                                        &quot;{data.summaries.quote}&quot;
                                     </p>
+                                    <div className="mt-4 pt-4 border-t border-white/20">
+                                        <p className="text-white/60 text-xs uppercase tracking-widest">Timeline Alchemy</p>
+                                    </div>
                                 </div>
                             </div>
 
                             <div className="flex gap-4">
                                 <button className="flex-1 h-12 rounded-xl bg-secondary text-foreground font-medium hover:bg-secondary/80 transition-colors">
-                                    Download
+                                    Download Image
                                 </button>
                                 <button className="flex-1 h-12 rounded-xl bg-primary text-background font-medium hover:bg-primary/90 transition-colors">
-                                    Publish to YouTube
+                                    Generate Audio (Coming Soon)
                                 </button>
                             </div>
                         </div>
