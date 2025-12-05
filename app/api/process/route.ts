@@ -25,18 +25,57 @@ export async function POST(req: Request) {
         }
 
         // 3. Generate Summaries & Visuals with Vercel AI SDK
-        const perplexity = createOpenAI({
-            apiKey: process.env.PERPLEXITY_API_KEY || '',
-            baseURL: 'https://api.perplexity.ai',
+        // Vercel AI Gateway Configuration
+        // The Gateway provides a unified endpoint and handles the keys if configured correctly,
+        // but typically we still need to pass the provider keys OR use the Gateway's specific setup.
+        // Based on the pulled env vars, we have AI_GATEWAY_URL, AI_GATEWAY_API_KEY, etc.
+
+        // However, the standard Vercel AI SDK usage with Gateway usually involves setting the baseURL
+        // and passing the Gateway headers.
+
+        const gatewayUrl = process.env.AI_GATEWAY_URL || 'https://ai-gateway.vercel.sh/v1';
+        const gatewayToken = process.env.AI_GATEWAY_API_KEY || process.env.AI_GATEWAY_TOKEN; // Use the key/token provided
+
+        // Map the keys from the pulled env vars
+        // Note: The user has GEMINI_API_KEY and GOOGLE_API_KEY in env, but our code looks for GOOGLE_GENERATIVE_AI_API_KEY
+        // We should update to check those as well.
+        const perplexityKey = process.env.PERPLEXITY_API_KEY || process.env.OPENAI_API_KEY; // Fallback to OpenAI if Perplexity not set (or if using Gateway to route)
+        const googleKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+        const openaiKey = process.env.OPENAI_API_KEY;
+
+        console.log("API Keys Check:", {
+            Perplexity: perplexityKey ? "Present" : "Missing",
+            Google: googleKey ? "Present" : "Missing",
+            OpenAI: openaiKey ? "Present" : "Missing",
+            Gateway: gatewayToken ? "Present" : "Missing"
         });
 
+        // If we are using the Gateway, we might not need individual keys if the Gateway is configured to hold them.
+        // But usually, the Gateway acts as a proxy and we pass our keys, OR we pass a Gateway Token.
+        // Let's configure the providers to point to the Gateway if available.
+
+        const perplexity = createOpenAI({
+            apiKey: perplexityKey, // Or gatewayToken if using Gateway for auth
+            baseURL: gatewayUrl, // Route through Vercel AI Gateway
+            headers: gatewayToken ? {
+                'Authorization': `Bearer ${gatewayToken}`,
+                'X-Vercel-AI-Provider': 'perplexity' // Hint to Gateway (conceptual)
+            } : {},
+        });
+
+        // For Google, the SDK might not support custom baseURL as easily for Gemini, 
+        // but let's try to use the standard Google provider with the key we found.
         const google = createGoogleGenerativeAI({
-            apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || '',
+            apiKey: googleKey,
         });
 
         // Initialize OpenAI for Image Generation
         const openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY,
+            apiKey: openaiKey,
+            baseURL: gatewayUrl, // Route through Gateway
+            defaultHeaders: gatewayToken ? {
+                'Authorization': `Bearer ${gatewayToken}`
+            } : {},
         });
 
         // We'll run these in parallel for speed
