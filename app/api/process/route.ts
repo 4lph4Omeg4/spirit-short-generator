@@ -55,20 +55,19 @@ export async function POST(req: Request) {
         // Let's configure the providers to point to the Gateway if available.
 
         const perplexity = createOpenAI({
-            apiKey: perplexityKey, // Or gatewayToken if using Gateway for auth
-            baseURL: gatewayUrl, // Route through Vercel AI Gateway
+            apiKey: gatewayToken,
+            baseURL: gatewayUrl,
             headers: gatewayToken ? {
-                'Authorization': `Bearer ${gatewayToken}`,
-                'X-Vercel-AI-Provider': 'perplexity' // Hint to Gateway (conceptual)
+                'X-Vercel-AI-Provider': 'perplexity'
             } : {},
         });
 
-        // Update Google provider to also route through the Gateway
-        const google = createGoogleGenerativeAI({
-            apiKey: googleKey,
-            baseURL: gatewayUrl, // Route through Vercel AI Gateway
+        // Use OpenAI-compatible client for Google via Gateway
+        // The Gateway exposes an OpenAI-compatible API, so we shouldn't use the Google SDK directly.
+        const google = createOpenAI({
+            apiKey: gatewayToken,
+            baseURL: gatewayUrl,
             headers: gatewayToken ? {
-                'Authorization': `Bearer ${gatewayToken}`,
                 'X-Vercel-AI-Provider': 'google'
             } : {},
         });
