@@ -63,10 +63,14 @@ export async function POST(req: Request) {
             } : {},
         });
 
-        // For Google, the SDK might not support custom baseURL as easily for Gemini, 
-        // but let's try to use the standard Google provider with the key we found.
+        // Update Google provider to also route through the Gateway
         const google = createGoogleGenerativeAI({
             apiKey: googleKey,
+            baseURL: gatewayUrl, // Route through Vercel AI Gateway
+            headers: gatewayToken ? {
+                'Authorization': `Bearer ${gatewayToken}`,
+                'X-Vercel-AI-Provider': 'google'
+            } : {},
         });
 
         // Initialize OpenAI for Image Generation
