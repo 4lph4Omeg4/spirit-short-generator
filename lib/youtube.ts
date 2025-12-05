@@ -23,10 +23,18 @@ export async function getVideoMetadata(url: string): Promise<VideoMetadata> {
 
 export async function getTranscript(url: string): Promise<string | null> {
     try {
-        const transcript = await YoutubeTranscript.fetchTranscript(url);
+        // Extract Video ID to ensure compatibility with Shorts and various URL formats
+        let videoId = url;
+        const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([^?&]+)/);
+        if (match && match[1]) {
+            videoId = match[1];
+        }
+
+        console.log(`Fetching transcript for Video ID: ${videoId}`);
+        const transcript = await YoutubeTranscript.fetchTranscript(videoId);
         return transcript.map(t => t.text).join(' ');
     } catch (e) {
-        console.error("Failed to fetch transcript", e);
+        console.error(`Failed to fetch transcript for ${url}:`, e);
         return null;
     }
 }

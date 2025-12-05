@@ -70,9 +70,14 @@ export async function POST(req: Request) {
         });
 
         // Initialize OpenAI for Image Generation
+        // Note: Vercel AI Gateway might not proxy DALL-E requests correctly or requires specific setup.
+        // If we have a direct OPENAI_API_KEY, we should use it directly for images to be safe.
+        // If OPENAI_API_KEY is actually a Gateway key, we must use the Gateway URL.
+        // We'll try to use the Gateway configuration first if enabled.
+
         const openai = new OpenAI({
             apiKey: openaiKey,
-            baseURL: gatewayUrl, // Route through Gateway
+            baseURL: gatewayUrl,
             defaultHeaders: gatewayToken ? {
                 'Authorization': `Bearer ${gatewayToken}`
             } : {},
@@ -81,35 +86,40 @@ export async function POST(req: Request) {
         // We'll run these in parallel for speed
         let summaries;
         try {
+            console.log("Starting AI Generation...");
+
             const [structuredRes, spiritualRes, quoteRes, imagePromptRes] = await Promise.all([
                 // 1. Structured Summary (Perplexity)
                 generateText({
-                    model: perplexity('sonar-pro'),
+                    model: perplexity('sonar-medium-online'), // Use a standard model name
                     prompt: `Analyze the following transcript and provide a factual, structured summary with 3 main bullet points. Transcript: ${transcript.slice(0, 20000)}`,
-                }),
+                }).then(res => { console.log("Structured Summary Done"); return res; }),
 
                 // 2. Spiritual Essence (Gemini)
                 generateText({
                     model: google('gemini-1.5-pro'),
                     prompt: `You are a spiritual alchemist. Rewrite the core message of this transcript into a poetic, resonant spiritual essence. Focus on the energy and the soul of the message. Transcript: ${transcript.slice(0, 20000)}`,
-                }),
+                }).then(res => { console.log("Spiritual Essence Done"); return res; }),
 
                 // 3. Quote (Gemini Flash)
                 generateText({
                     model: google('gemini-1.5-flash'),
                     prompt: `Extract the single most powerful, short, and inspirational quote from this transcript. Return ONLY the quote text, nothing else. Transcript: ${transcript.slice(0, 20000)}`,
-                }),
+                }).then(res => { console.log("Quote Done"); return res; }),
 
                 // 4. Visual Prompt (Gemini Flash)
                 generateText({
                     model: google('gemini-1.5-flash'),
                     prompt: `Based on the spiritual essence of this transcript, describe a single, abstract, cinematic, and ethereal image that represents the soul of this message. The image should be suitable for a vertical 9:16 video background. Describe lighting, colors, and mood. Keep it under 50 words. Transcript: ${transcript.slice(0, 20000)}`,
-                }),
+                }).then(res => { console.log("Visual Prompt Done"); return res; }),
             ]);
+
+            console.log("Text Generation Complete. Starting Image Generation...");
 
             // 5. Generate Image (DALL-E 3)
             let imageUrl = null;
             try {
+                // If using Gateway, ensure the model is supported. If not, this might fail.
                 const imageResponse = await openai.images.generate({
                     model: "dall-e-3",
                     prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes.text}`,
@@ -117,8 +127,9 @@ export async function POST(req: Request) {
                     size: "1024x1792",
                 });
                 imageUrl = imageResponse?.data?.[0]?.url || null;
+                console.log("Image Generation Done");
             } catch (imgError) {
-                console.error("Image generation failed:", imgError);
+                console.error("Image generation failed (Gateway might not support DALL-E or key issue):", imgError);
                 imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"; // Fallback
             }
 
@@ -130,9 +141,9 @@ export async function POST(req: Request) {
                 image_prompt: imagePromptRes.text
             };
         } catch (aiError) {
-            console.error("AI Generation failed (likely missing keys), falling back to mock:", aiError);
+            console.error("AI Generation failed (likely missing keys or Gateway issue), falling back to mock:", aiError);
             summaries = {
-                structured: "AI Generation Failed (Check API Keys). Mock: The video covers three main points: 1. The importance of mindfulness. 2. How to practice daily gratitude. 3. The connection between inner peace and outer reality.",
+                structured: "AI Generation Failed (Check Server Logs). Mock: The video covers three main points: 1. The importance of mindfulness. 2. How to practice daily gratitude. 3. The connection between inner peace and outer reality.",
                 spiritual: "AI Generation Failed. Mock: At its core, this message invites you to return to the sanctuary of your own heart.",
                 quote: "The universe is not outside of you.",
                 image_url: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop",
