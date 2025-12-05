@@ -5,17 +5,25 @@ import OpenAI from 'openai';
 // Helper to clean AI output
 function cleanText(text: string): string {
     if (!text) return "";
-    return text
+    // 1. Remove conversational prefixes
+    let cleaned = text
         .replace(/^Here is.*?:\s*/i, "")
         .replace(/^Based on.*?:\s*/i, "")
         .replace(/^Sure.*?:\s*/i, "")
         .replace(/^The quote is.*?:\s*/i, "")
         .replace(/^The essence is.*?:\s*/i, "")
-        .replace(/\[\d+\]/g, "") // Remove citations like [1]
-        .replace(/^\s*[-*]\s*/gm, "") // Remove list bullets if we want raw text (optional, keeping for summary)
-        .replace(/^"|"$/g, "") // Remove surrounding quotes
-        .replace(/\*\*/g, "") // Remove bold markdown
+        .replace(/^"|"$/g, "") // Remove surrounding quotes first
         .trim();
+
+    // 2. Remove conversational suffixes/explanations
+    cleaned = cleaned
+        .replace(/\s*This quote captures[\s\S]*$/i, "")
+        .replace(/\s*This reflects[\s\S]*$/i, "")
+        .replace(/\s*In this passage[\s\S]*$/i, "")
+        .replace(/\[\d+\]/g, "")
+        .trim();
+
+    return cleaned;
 }
 
 // Specialized cleaner for the summary to keep bullets but remove filler
@@ -112,19 +120,23 @@ export async function POST(req: Request) {
 
             console.log("Text Generation Complete. Starting Image Generation...");
 
-            // 5. Generate Image (Google Imagen 3 / Nano Banana) - Via Gateway
+            // 5. Generate Image (DALL-E 3) - Direct OpenAI Call (Bypassing Gateway due to 404s)
             let imageUrl = null;
             try {
-                // Using the Gateway client (textClient) for images as well
-                const imageResponse = await textClient.images.generate({
-                    model: "google/imagen-3",
+                // Re-init direct client just for this call to be safe/clear
+                const directImageClient = new OpenAI({
+                    apiKey: process.env.OPENAI_API_KEY,
+                });
+
+                const imageResponse = await directImageClient.images.generate({
+                    model: "dall-e-3",
                     prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
                     n: 1,
                     size: "1024x1792",
-                }, { headers: { 'X-Vercel-AI-Provider': 'google' } });
+                });
 
                 imageUrl = imageResponse?.data?.[0]?.url || null;
-                console.log("Image Generation Done (Nano Banana)");
+                console.log("Image Generation Done (DALL-E 3 Direct)");
             } catch (imgError) {
                 console.error("Image generation failed:", JSON.stringify(imgError, null, 2));
                 imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"; // Fallback
