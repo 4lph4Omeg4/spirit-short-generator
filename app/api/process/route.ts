@@ -96,7 +96,7 @@ export async function POST(req: Request) {
             try {
                 // Using the Gateway client (textClient) for images as well
                 const imageResponse = await textClient.images.generate({
-                    model: "google/gemini-2.5-flash-image-preview",
+                    model: "google/gemini-2.5-flash-image-001",
                     prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
                     n: 1,
                     size: "1024x1792",
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
                 imageUrl = imageResponse?.data?.[0]?.url || null;
                 console.log("Image Generation Done (Nano Banana)");
             } catch (imgError) {
-                console.error("Image generation failed:", imgError);
+                console.error("Image generation failed:", JSON.stringify(imgError, null, 2));
                 imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"; // Fallback
             }
 
