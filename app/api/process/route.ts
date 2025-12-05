@@ -162,8 +162,11 @@ export async function POST(req: Request) {
                             console.log("Base64 Start:", content.substring(0, 50));
                         } else {
                             console.log("No image URL or Base64 found in content. Content start:", content.substring(0, 100));
+                            imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"; // Fallback if extraction fails
                         }
                     }
+                } else {
+                    imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"; // Fallback if no content
                 }
 
             } catch (imgError) {
@@ -181,7 +184,11 @@ export async function POST(req: Request) {
 
             // 6. Save to Supabase
             try {
-                console.log("Saving to Supabase...");
+                console.log("Saving to Supabase... Payload (truncated):", {
+                    ...summaries,
+                    image_url: summaries.image_url?.substring(0, 50) + "..."
+                });
+
                 const { data, error } = await supabase
                     .from('videos')
                     .insert([
@@ -209,7 +216,7 @@ export async function POST(req: Request) {
             }
 
         } catch (aiError) {
-            console.error("AI Generation failed, falling back to mock:", aiError);
+            console.error("FULL AI ERROR:", aiError);
             summaries = {
                 structured: "AI Generation Failed (Check Server Logs). Mock: The video covers three main points: 1. The importance of mindfulness. 2. How to practice daily gratitude. 3. The connection between inner peace and outer reality.",
                 spiritual: "AI Generation Failed. Mock: At its core, this message invites you to return to the sanctuary of your own heart.",
@@ -217,6 +224,21 @@ export async function POST(req: Request) {
                 image_url: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop",
                 image_prompt: "A mock spiritual background."
             };
+
+            // Attempt to save the error state to Supabase so we can see it in the DB too
+            try {
+                await supabase.from('videos').insert([{
+                    video_url: url,
+                    title: metadata.title,
+                    channel_name: metadata.author_name,
+                    transcript: transcript,
+                    summary_structured: summaries.structured,
+                    spiritual_essence: summaries.spiritual,
+                    quote: summaries.quote,
+                    image_prompt: summaries.image_prompt,
+                    image_url: summaries.image_url,
+                }]);
+            } catch (e) { console.error("Failed to save error state to DB", e); }
         }
 
         return NextResponse.json({
