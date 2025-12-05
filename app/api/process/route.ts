@@ -2,6 +2,33 @@ import { NextResponse } from 'next/server';
 import { getVideoMetadata, getTranscript } from '@/lib/youtube';
 import OpenAI from 'openai';
 
+// Helper to clean AI output
+function cleanText(text: string): string {
+    if (!text) return "";
+    return text
+        .replace(/^Here is.*?:\s*/i, "")
+        .replace(/^Based on.*?:\s*/i, "")
+        .replace(/^Sure.*?:\s*/i, "")
+        .replace(/^The quote is.*?:\s*/i, "")
+        .replace(/^The essence is.*?:\s*/i, "")
+        .replace(/\[\d+\]/g, "") // Remove citations like [1]
+        .replace(/^\s*[-*]\s*/gm, "") // Remove list bullets if we want raw text (optional, keeping for summary)
+        .replace(/^"|"$/g, "") // Remove surrounding quotes
+        .replace(/\*\*/g, "") // Remove bold markdown
+        .trim();
+}
+
+// Specialized cleaner for the summary to keep bullets but remove filler
+function cleanSummary(text: string): string {
+    if (!text) return "";
+    let cleaned = text
+        .replace(/^Here is.*?:\s*/i, "")
+        .replace(/^Based on.*?:\s*/i, "")
+        .replace(/\[\d+\]/g, "")
+        .trim();
+    return cleaned;
+}
+
 export async function POST(req: Request) {
     try {
         const { url } = await req.json();
@@ -40,12 +67,6 @@ export async function POST(req: Request) {
             } : {},
         });
 
-        // Client for Images (Direct OpenAI) - Bypass Gateway to avoid 404s
-        const imageClient = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY, // Must use direct OpenAI key
-            // No baseURL, defaults to https://api.openai.com/v1
-        });
-
         // We'll run these in parallel for speed
         let summaries;
         try {
@@ -56,28 +77,28 @@ export async function POST(req: Request) {
                 textClient.chat.completions.create({
                     model: 'perplexity/sonar-pro',
                     messages: [
-                        { role: 'system', content: 'Output ONLY a bulleted list of 3 points. NO intro. NO outro. NO citations. NO words like "Based on".' },
+                        { role: 'system', content: 'Output ONLY a bulleted list of 3 points. NO intro. NO outro. NO citations.' },
                         { role: 'user', content: `Summarize this text into 3 bullet points:\n\n${transcript.slice(0, 20000)}` }
                     ],
-                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Structured Summary Done"); return res.choices[0]?.message?.content || ""; }),
+                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Structured Summary Done"); return cleanSummary(res.choices[0]?.message?.content || ""); }),
 
                 // 2. Spiritual Essence (Perplexity)
                 textClient.chat.completions.create({
                     model: 'perplexity/sonar-pro',
                     messages: [
-                        { role: 'system', content: 'Output ONLY the spiritual essence text. NO intro. NO outro. NO citations. Do NOT say "The essence is".' },
+                        { role: 'system', content: 'Output ONLY the spiritual essence text. NO intro. NO outro. NO citations.' },
                         { role: 'user', content: `Rewrite the soul of this message into a poetic spiritual essence:\n\n${transcript.slice(0, 20000)}` }
                     ],
-                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Spiritual Essence Done"); return res.choices[0]?.message?.content || ""; }),
+                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Spiritual Essence Done"); return cleanText(res.choices[0]?.message?.content || ""); }),
 
                 // 3. Quote (Perplexity)
                 textClient.chat.completions.create({
                     model: 'perplexity/sonar-pro',
                     messages: [
-                        { role: 'system', content: 'Output ONLY the quote text. NO intro. NO outro. NO citations. NO labels.' },
+                        { role: 'system', content: 'Output ONLY the quote text. NO intro. NO outro. NO citations.' },
                         { role: 'user', content: `Extract the single best short quote from this text:\n\n${transcript.slice(0, 20000)}` }
                     ],
-                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Quote Done"); return res.choices[0]?.message?.content || ""; }),
+                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Quote Done"); return cleanText(res.choices[0]?.message?.content || ""); }),
 
                 // 4. Visual Prompt (Perplexity)
                 textClient.chat.completions.create({
@@ -86,17 +107,17 @@ export async function POST(req: Request) {
                         { role: 'system', content: 'Output ONLY the image description. NO intro. NO outro. NO citations.' },
                         { role: 'user', content: `Describe an abstract, cinematic, spiritual background image (9:16) based on this text:\n\n${transcript.slice(0, 20000)}` }
                     ],
-                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Visual Prompt Done"); return res.choices[0]?.message?.content || ""; }),
+                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Visual Prompt Done"); return cleanText(res.choices[0]?.message?.content || ""); }),
             ]);
 
             console.log("Text Generation Complete. Starting Image Generation...");
 
-            // 5. Generate Image (Nano Banana / Gemini 2.5 Flash Image) - Via Gateway
+            // 5. Generate Image (Google Imagen 3 / Nano Banana) - Via Gateway
             let imageUrl = null;
             try {
                 // Using the Gateway client (textClient) for images as well
                 const imageResponse = await textClient.images.generate({
-                    model: "google/gemini-2.5-flash-image-001",
+                    model: "google/imagen-3",
                     prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
                     n: 1,
                     size: "1024x1792",
