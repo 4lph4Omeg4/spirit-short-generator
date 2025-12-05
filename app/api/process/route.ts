@@ -138,7 +138,6 @@ export async function POST(req: Request) {
                 console.log("Nano Banana Response:", JSON.stringify(imageResponse, null, 2));
 
                 const content = imageResponse.choices[0]?.message?.content;
-
                 // Try to extract image URL from markdown or raw content
                 // Pattern: ![alt](url) or just url
                 const markdownImageRegex = /!\[.*?\]\((.*?)\)/;
@@ -154,8 +153,14 @@ export async function POST(req: Request) {
                         if (urlMatch && urlMatch[1]) {
                             imageUrl = urlMatch[1];
                             console.log("Extracted Image URL from Text:", imageUrl);
+                        } else if (content.length > 200 && !content.includes(' ')) {
+                            // Assume it's a base64 string if it's long and has no spaces (or check for base64 chars)
+                            // The log showed a PNG footer, so we default to png.
+                            imageUrl = `data:image/png;base64,${content}`;
+                            console.log("Extracted Base64 Image (Length:", content.length, ")");
+                            console.log("Base64 Start:", content.substring(0, 50));
                         } else {
-                            console.log("No image URL found in content. Content:", content);
+                            console.log("No image URL or Base64 found in content. Content start:", content.substring(0, 100));
                         }
                     }
                 }
