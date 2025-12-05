@@ -3,6 +3,7 @@ import { getVideoMetadata, getTranscript } from '@/lib/youtube';
 import OpenAI from 'openai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText } from 'ai';
+import { supabase } from '@/lib/supabase';
 
 // Helper to clean AI output
 function cleanText(text: string): string {
@@ -177,6 +178,36 @@ export async function POST(req: Request) {
                 image_url: imageUrl,
                 image_prompt: imagePromptRes
             };
+
+            // 6. Save to Supabase
+            try {
+                console.log("Saving to Supabase...");
+                const { data, error } = await supabase
+                    .from('videos')
+                    .insert([
+                        {
+                            video_url: url,
+                            title: metadata.title,
+                            channel_name: metadata.author_name,
+                            transcript: transcript,
+                            summary_structured: summaries.structured,
+                            spiritual_essence: summaries.spiritual,
+                            quote: summaries.quote,
+                            image_prompt: summaries.image_prompt,
+                            image_url: summaries.image_url,
+                        }
+                    ])
+                    .select();
+
+                if (error) {
+                    console.error("Supabase Insert Error:", error);
+                } else {
+                    console.log("Saved to Supabase:", data);
+                }
+            } catch (dbError) {
+                console.error("Supabase Save Failed:", dbError);
+            }
+
         } catch (aiError) {
             console.error("AI Generation failed, falling back to mock:", aiError);
             summaries = {
