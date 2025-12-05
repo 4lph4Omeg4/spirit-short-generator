@@ -50,7 +50,7 @@ export async function POST(req: Request) {
             const [structuredRes, spiritualRes, quoteRes, imagePromptRes] = await Promise.all([
                 // 1. Structured Summary (Perplexity)
                 client.chat.completions.create({
-                    model: 'sonar-medium-online',
+                    model: 'perplexity/sonar-pro',
                     messages: [
                         { role: 'system', content: 'You are a helpful assistant.' },
                         { role: 'user', content: `Analyze the following transcript and provide a factual, structured summary with 3 main bullet points. Transcript: ${transcript.slice(0, 15000)}` }
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
 
                 // 2. Spiritual Essence (Google Gemini)
                 client.chat.completions.create({
-                    model: 'gemini-1.5-pro',
+                    model: 'google/gemini-1.5-pro',
                     messages: [
                         { role: 'system', content: 'You are a spiritual alchemist.' },
                         { role: 'user', content: `Rewrite the core message of this transcript into a poetic, resonant spiritual essence. Focus on the energy and the soul of the message. Transcript: ${transcript.slice(0, 15000)}` }
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
 
                 // 3. Quote (Google Gemini)
                 client.chat.completions.create({
-                    model: 'gemini-1.5-flash',
+                    model: 'google/gemini-1.5-flash',
                     messages: [
                         { role: 'user', content: `Extract the single most powerful, short, and inspirational quote from this transcript. Return ONLY the quote text, nothing else. Transcript: ${transcript.slice(0, 15000)}` }
                     ],
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
 
                 // 4. Visual Prompt (Google Gemini)
                 client.chat.completions.create({
-                    model: 'gemini-1.5-flash',
+                    model: 'google/gemini-1.5-flash',
                     messages: [
                         { role: 'user', content: `Based on the spiritual essence of this transcript, describe a single, abstract, cinematic, and ethereal image that represents the soul of this message. The image should be suitable for a vertical 9:16 video background. Describe lighting, colors, and mood. Keep it under 50 words. Transcript: ${transcript.slice(0, 15000)}` }
                     ],
