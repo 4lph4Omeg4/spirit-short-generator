@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next"
 import "./globals.css";
 
 const outfit = Outfit({
@@ -10,7 +9,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Spirit Shorts Generator | Timeline Alchemy",
+  title: "Spiritual Shorts Generator | Timeline Alchemy",
   description: "Generate spiritual shorts from YouTube videos with AI.",
 };
 
