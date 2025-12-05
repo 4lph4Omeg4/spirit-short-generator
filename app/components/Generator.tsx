@@ -201,7 +201,18 @@ export default function Generator() {
                             </div>
 
                             <div className="flex gap-4">
-                                <button className="flex-1 h-12 rounded-xl bg-secondary text-foreground font-medium hover:bg-secondary/80 transition-colors">
+                                <button
+                                    onClick={() => {
+                                        if (!data?.summaries?.image_url) return;
+                                        const link = document.createElement('a');
+                                        link.href = data.summaries.image_url;
+                                        link.download = `spiritual-essence-${Date.now()}.png`;
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                    }}
+                                    className="flex-1 h-12 rounded-xl bg-secondary text-foreground font-medium hover:bg-secondary/80 transition-colors"
+                                >
                                     Download Image
                                 </button>
                                 <button className="flex-1 h-12 rounded-xl bg-primary text-background font-medium hover:bg-primary/90 transition-colors">

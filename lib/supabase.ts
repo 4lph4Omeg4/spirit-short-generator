@@ -10,4 +10,4 @@ if (!supabaseUrl || !supabaseKey) {
     console.log("Supabase Client Initialized with URL:", supabaseUrl.substring(0, 20) + "...");
 }
 
-export const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseKey || 'placeholder');
+export const supabase = createClient(supabaseUrl || 'https://auth.timeline-alchemy.nl', supabaseKey || 'placeholder');
