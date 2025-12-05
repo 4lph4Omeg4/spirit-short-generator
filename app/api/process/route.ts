@@ -123,50 +123,59 @@ export async function POST(req: Request) {
 
             console.log("Text Generation Complete. Starting Image Generation...");
 
-            // 5. Generate Image (Google Nano Banana) - Via Gateway Chat Completion (Multimodal)
+            // 5. Generate Image (Google Nano Banana) - Via Vercel AI SDK generateText (Multimodal)
             let imageUrl = null;
             try {
-                console.log("Generating image with google/gemini-2.5-flash-image (Chat Completion)...");
+                console.log("Generating image with google/gemini-2.5-flash-image (AI SDK generateText)...");
 
-                // Nano Banana is a multimodal LLM, so we use chat.completions, NOT images.generate
-                const imageResponse = await textClient.chat.completions.create({
-                    model: 'google/gemini-2.5-flash-image',
-                    messages: [
-                        { role: 'user', content: `Render a vertical 9:16 aspect ratio image. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}` }
-                    ],
-                }, { headers: { 'X-Vercel-AI-Provider': 'google' } });
+                const gateway = createOpenAI({
+                    baseURL: gatewayUrl,
+                    apiKey: gatewayToken || openaiKey,
+                    headers: gatewayToken ? {
+                        'Authorization': `Bearer ${gatewayToken}`
+                    } : {},
+                });
 
-                console.log("Nano Banana Response:", JSON.stringify(imageResponse, null, 2));
+                // Cast to any to access potential experimental properties like 'files'
+                const result: any = await generateText({
+                    model: gateway('google/gemini-2.5-flash-image'),
+                    prompt: `Render a vertical 9:16 aspect ratio image. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
+                });
 
-                const content = imageResponse.choices[0]?.message?.content;
-                // Try to extract image URL from markdown or raw content
-                // Pattern: ![alt](url) or just url
-                const markdownImageRegex = /!\[.*?\]\((.*?)\)/;
-                const urlRegex = /(https?:\/\/[^\s)]+)/;
+                console.log("Nano Banana SDK Result:", JSON.stringify(result, null, 2));
 
-                if (content) {
+                // Check for files (as per user docs) or base64 in text
+                if (result.files && result.files.length > 0) {
+                    // Assuming files contains { type: 'image', data: 'base64...' } or similar
+                    const file = result.files[0];
+                    if (file.data) {
+                        imageUrl = `data:${file.mimeType || 'image/png'};base64,${file.data}`;
+                        console.log("Extracted Image from result.files");
+                    }
+                }
+
+                if (!imageUrl && result.text) {
+                    // Fallback: Check if image is in text as markdown or url
+                    const content = result.text;
+                    const markdownImageRegex = /!\[.*?\]\((.*?)\)/;
+                    const urlRegex = /(https?:\/\/[^\s)]+)/;
+
                     const mdMatch = content.match(markdownImageRegex);
                     if (mdMatch && mdMatch[1]) {
                         imageUrl = mdMatch[1];
-                        console.log("Extracted Image URL from Markdown:", imageUrl);
+                        console.log("Extracted Image URL from SDK Text (Markdown)");
                     } else {
                         const urlMatch = content.match(urlRegex);
                         if (urlMatch && urlMatch[1]) {
                             imageUrl = urlMatch[1];
-                            console.log("Extracted Image URL from Text:", imageUrl);
-                        } else if (content.length > 200 && !content.includes(' ')) {
-                            // Assume it's a base64 string if it's long and has no spaces (or check for base64 chars)
-                            // The log showed a PNG footer, so we default to png.
-                            imageUrl = `data:image/png;base64,${content}`;
-                            console.log("Extracted Base64 Image (Length:", content.length, ")");
-                            console.log("Base64 Start:", content.substring(0, 50));
-                        } else {
-                            console.log("No image URL or Base64 found in content. Content start:", content.substring(0, 100));
-                            imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"; // Fallback if extraction fails
+                            console.log("Extracted Image URL from SDK Text (URL)");
                         }
                     }
-                } else {
-                    imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"; // Fallback if no content
+                }
+
+                if (!imageUrl) {
+                    console.log("No image found in SDK result.");
+                    imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop";
                 }
 
             } catch (imgError) {
