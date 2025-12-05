@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getVideoMetadata, getTranscript } from '@/lib/youtube';
 import OpenAI from 'openai';
+import { createOpenAI } from '@ai-sdk/openai';
+import { generateText } from 'ai';
 
 // Helper to clean AI output
 function cleanText(text: string): string {
@@ -120,23 +122,35 @@ export async function POST(req: Request) {
 
             console.log("Text Generation Complete. Starting Image Generation...");
 
-            // 5. Generate Image (DALL-E 3) - Direct OpenAI Call (Bypassing Gateway due to 404s)
+            // 5. Generate Image (Google Nano Banana) - Via AI SDK & Gateway
             let imageUrl = null;
             try {
-                // Re-init direct client just for this call to be safe/clear
-                const directImageClient = new OpenAI({
-                    apiKey: process.env.OPENAI_API_KEY,
+                // Initialize Gateway Provider for AI SDK
+                const gateway = createOpenAI({
+                    baseURL: gatewayUrl,
+                    apiKey: gatewayToken || openaiKey,
                 });
 
-                const imageResponse = await directImageClient.images.generate({
-                    model: "dall-e-3",
-                    prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
-                    n: 1,
-                    size: "1024x1792",
+                console.log("Generating image with google/gemini-2.5-flash-image...");
+
+                // Use generateText for multimodal model
+                const result: any = await generateText({
+                    model: gateway('google/gemini-2.5-flash-image'),
+                    prompt: `Render a vertical 9:16 aspect ratio image. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
                 });
 
-                imageUrl = imageResponse?.data?.[0]?.url || null;
-                console.log("Image Generation Done (DALL-E 3 Direct)");
+                console.log("Nano Banana Result Keys:", Object.keys(result));
+                // Check for images in likely locations based on user screenshot ("result.files") or standard AI SDK paths
+                if (result.files && result.files.length > 0) {
+                    // Assuming result.files contains objects with 'url' or 'content'
+                    // We might need to handle base64 or urls. 
+                    // For now, let's log what we find.
+                    console.log("Found files:", JSON.stringify(result.files, null, 2));
+                    imageUrl = result.files[0].url || result.files[0];
+                } else {
+                    console.log("No files found in result. Full result:", JSON.stringify(result, null, 2));
+                }
+
             } catch (imgError) {
                 console.error("Image generation failed:", JSON.stringify(imgError, null, 2));
                 imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"; // Fallback
