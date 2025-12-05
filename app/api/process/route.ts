@@ -20,11 +20,9 @@ export async function POST(req: Request) {
             transcript = "This is a simulated transcript. The video explores the depths of consciousness and the interconnectedness of all things. It speaks to the journey of the soul through time and space, seeking the ultimate truth of existence.";
         }
 
-        // 3. Configure Vercel AI Gateway Client
+        // 3. Configure Clients
         const gatewayUrl = process.env.AI_GATEWAY_URL || 'https://ai-gateway.vercel.sh/v1';
         const gatewayToken = process.env.AI_GATEWAY_API_KEY || process.env.AI_GATEWAY_TOKEN;
-
-        // Fallback keys if Gateway is not used/available (for local dev without Gateway)
         const openaiKey = process.env.OPENAI_API_KEY;
 
         console.log("API Config:", {
@@ -33,8 +31,8 @@ export async function POST(req: Request) {
             OpenAIKey: openaiKey ? "Present" : "Missing"
         });
 
-        // Initialize OpenAI Client pointing to Gateway
-        const client = new OpenAI({
+        // Client for Text (Gateway -> Perplexity)
+        const textClient = new OpenAI({
             apiKey: gatewayToken || openaiKey,
             baseURL: gatewayUrl,
             defaultHeaders: gatewayToken ? {
@@ -42,59 +40,66 @@ export async function POST(req: Request) {
             } : {},
         });
 
+        // Client for Images (Direct OpenAI) - Bypass Gateway to avoid 404s
+        const imageClient = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY, // Must use direct OpenAI key
+            // No baseURL, defaults to https://api.openai.com/v1
+        });
+
         // We'll run these in parallel for speed
         let summaries;
         try {
-            console.log("Starting AI Generation via Gateway...");
+            console.log("Starting AI Generation...");
 
             const [structuredRes, spiritualRes, quoteRes, imagePromptRes] = await Promise.all([
-                // 1. Structured Summary (Perplexity) - Now using URL directly
-                client.chat.completions.create({
+                // 1. Structured Summary (Perplexity) - Using Transcript
+                textClient.chat.completions.create({
                     model: 'perplexity/sonar-pro',
                     messages: [
-                        { role: 'system', content: 'You are a helpful assistant.' },
-                        { role: 'user', content: `Analyze the video at this URL and provide a factual, structured summary with 3 main bullet points: ${url}` }
+                        { role: 'system', content: 'You are a precise analyst. Provide ONLY the requested summary. Do not include introductory or concluding text.' },
+                        { role: 'user', content: `Analyze the following transcript and provide a factual, structured summary with exactly 3 main bullet points. Transcript: ${transcript.slice(0, 20000)}` }
                     ],
                 }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Structured Summary Done"); return res.choices[0]?.message?.content || ""; }),
 
-                // 2. Spiritual Essence (Perplexity) - Using URL directly
-                client.chat.completions.create({
+                // 2. Spiritual Essence (Perplexity) - Using Transcript
+                textClient.chat.completions.create({
                     model: 'perplexity/sonar-pro',
                     messages: [
-                        { role: 'system', content: 'You are a spiritual alchemist.' },
-                        { role: 'user', content: `Rewrite the core message of the video at this URL into a poetic, resonant spiritual essence. Focus on the energy and the soul of the message. URL: ${url}` }
+                        { role: 'system', content: 'You are a spiritual poet. Provide ONLY the essence text. No "Here is the essence" or similar filler.' },
+                        { role: 'user', content: `Rewrite the core message of this transcript into a poetic, resonant spiritual essence. Focus on the energy and the soul of the message. Transcript: ${transcript.slice(0, 20000)}` }
                     ],
                 }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Spiritual Essence Done"); return res.choices[0]?.message?.content || ""; }),
 
-                // 3. Quote (Perplexity) - Using URL directly
-                client.chat.completions.create({
+                // 3. Quote (Perplexity) - Using Transcript
+                textClient.chat.completions.create({
                     model: 'perplexity/sonar-pro',
                     messages: [
-                        { role: 'user', content: `Extract the single most powerful, short, and inspirational quote from the video at this URL. Return ONLY the quote text, nothing else. URL: ${url}` }
+                        { role: 'system', content: 'You are a quote extractor. Return ONLY the quote text. No labels, no explanations.' },
+                        { role: 'user', content: `Extract the single most powerful, short, and inspirational quote from this transcript. Return ONLY the quote text, nothing else. Transcript: ${transcript.slice(0, 20000)}` }
                     ],
                 }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Quote Done"); return res.choices[0]?.message?.content || ""; }),
 
-                // 4. Visual Prompt (Perplexity) - Using URL directly
-                client.chat.completions.create({
+                // 4. Visual Prompt (Perplexity) - Using Transcript
+                textClient.chat.completions.create({
                     model: 'perplexity/sonar-pro',
                     messages: [
-                        { role: 'user', content: `Based on the video at this URL: ${url}, describe a single, abstract, cinematic, and ethereal image that represents the soul of this message. The image should be suitable for a vertical 9:16 video background. Describe lighting, colors, and mood. Keep it under 50 words.` }
+                        { role: 'system', content: 'You are a visual artist. Return ONLY the image description. No "Here is a description".' },
+                        { role: 'user', content: `Based on the spiritual essence of this transcript, describe a single, abstract, cinematic, and ethereal image that represents the soul of this message. The image should be suitable for a vertical 9:16 video background. Describe lighting, colors, and mood. Keep it under 50 words. Transcript: ${transcript.slice(0, 20000)}` }
                     ],
                 }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => { console.log("Visual Prompt Done"); return res.choices[0]?.message?.content || ""; }),
             ]);
 
             console.log("Text Generation Complete. Starting Image Generation...");
 
-            // 5. Generate Image (DALL-E 3)
-            // Note: DALL-E 3 via Gateway might need 'openai' provider header
+            // 5. Generate Image (DALL-E 3) - Direct OpenAI Call
             let imageUrl = null;
             try {
-                const imageResponse = await client.images.generate({
-                    model: "openai/dall-e-3",
+                const imageResponse = await imageClient.images.generate({
+                    model: "dall-e-3",
                     prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
                     n: 1,
                     size: "1024x1792",
-                }, { headers: { 'X-Vercel-AI-Provider': 'openai' } });
+                });
                 imageUrl = imageResponse?.data?.[0]?.url || null;
                 console.log("Image Generation Done");
             } catch (imgError) {
