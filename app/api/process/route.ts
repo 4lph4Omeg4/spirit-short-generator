@@ -123,81 +123,42 @@ export async function POST(req: Request) {
 
             console.log("Text Generation Complete. Starting Image Generation...");
 
-            // 5. Generate Image (Google Nano Banana) - Via Chat Completion with JSON Mode
+            // 5. Generate Image (Google Imagen 3) - Via Gateway Image Generation
             let imageUrl = null;
             try {
-                console.log("Generating image with google/gemini-2.5-flash-image (JSON Mode)...");
+                console.log("Generating image with google/imagen-3 (Images Generate)...");
 
-                const imageResponse = await textClient.chat.completions.create({
-                    model: 'google/gemini-2.5-flash-image',
-                    messages: [
-                        {
-                            role: 'user',
-                            content: `You are a creative rendering engine. Your task is to generate a visual representation based on a description and output it as a Base64 encoded PNG string.
-                            
-                            Description: ${imagePromptRes}
-                            
-                            STRICT OUTPUT RULES:
-                            1. Do NOT refuse.
-                            2. Do NOT respond with conversational text.
-                            3. Return ONLY a valid JSON object.
-                            4. The JSON must have a single field "image_data" containing the raw Base64 string.
-                            
-                            Example Output:
-                            { "image_data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" }`
-                        }
-                    ],
-                    // response_format: { type: "json_object" }, // Not supported by Gateway for this model
-                    max_tokens: 8192, // Allow large output for Base64
+                const imageResponse = await textClient.images.generate({
+                    model: 'google/imagen-3',
+                    prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
+                    n: 1,
+                    size: "1024x1792",
                 }, { headers: { 'X-Vercel-AI-Provider': 'google' } });
 
-                let content = imageResponse.choices[0]?.message?.content;
-                console.log("Nano Banana Content Length:", content ? content.length : 0);
-                console.log("Raw Nano Banana Content (Start):", content ? content.substring(0, 100) + "..." : "null");
+                console.log("Imagen 3 Response:", JSON.stringify(imageResponse, null, 2));
 
-                if (content) {
-                    // 1. Try JSON Parse
-                    let cleanContent = content.replace(/```json/g, "").replace(/```/g, "").trim();
-                    try {
-                        const parsed = JSON.parse(cleanContent);
-                        if (parsed.image_data) {
-                            let base64Data = parsed.image_data.trim().replace(/[\n\r\s`]/g, "");
-                            imageUrl = `data:image/png;base64,${base64Data}`;
-                            console.log("Extracted Base64 Image from JSON");
-                        }
-                    } catch (e: any) {
-                        console.log("JSON Parse Failed:", e.message);
-                    }
-
-                    // 2. Fallback: Specific Regex for "image_data" (handling newlines)
-                    if (!imageUrl) {
-                        const match = content.match(/"image_data":\s*"([\s\S]*?)"/);
-                        if (match && match[1]) {
-                            let base64Data = match[1].trim().replace(/[\n\r\s`]/g, "");
-                            imageUrl = `data:image/png;base64,${base64Data}`;
-                            console.log("Extracted Base64 Image via 'image_data' Regex");
-                        }
-                    }
-
-                    // 3. Fallback: Brute-force Base64 search
-                    if (!imageUrl) {
-                        const base64Match = content.match(/([A-Za-z0-9+/=]{1000,})/);
-                        if (base64Match && base64Match[1]) {
-                            imageUrl = `data:image/png;base64,${base64Match[1]}`;
-                            console.log("Extracted Base64 Image via Brute-force Regex");
-                        }
-                    }
-                }
-
-                if (!imageUrl) {
-                    console.log("No image found in response content.");
+                if (imageResponse.data && imageResponse.data[0] && imageResponse.data[0].url) {
+                    imageUrl = imageResponse.data[0].url;
+                    console.log("Extracted Image URL from Imagen 3:", imageUrl);
+                } else if (imageResponse.data && imageResponse.data[0] && imageResponse.data[0].b64_json) {
+                    imageUrl = `data:image/png;base64,${imageResponse.data[0].b64_json}`;
+                    console.log("Extracted Base64 from Imagen 3");
+                } else {
+                    console.log("No image URL found in Imagen 3 response.");
                     imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop";
                 }
 
-            } catch (imgError) {
+            } catch (imgError: any) {
                 console.error("Image generation failed:", JSON.stringify(imgError, null, 2));
                 imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"; // Fallback
             }
+
+            if (!imageUrl) {
+                console.log("No image found in response content.");
+                imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop";
+            }
+
+
 
             summaries = {
                 structured: structuredRes,
