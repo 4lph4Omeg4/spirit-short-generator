@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getVideoMetadata, getTranscript } from '@/lib/youtube';
 import OpenAI from 'openai';
 import { createOpenAI } from '@ai-sdk/openai';
-import { generateText } from 'ai';
+import { generateText, experimental_generateImage } from 'ai';
+import { google } from '@ai-sdk/google';
 import { supabase } from '@/lib/supabase';
 
 // Helper to clean AI output
@@ -78,12 +79,6 @@ export async function POST(req: Request) {
             } : {},
         });
 
-        // Client for Images (Direct OpenAI -> DALL-E 3)
-        // We bypass the gateway for images to ensure model availability
-        const imageClient = new OpenAI({
-            apiKey: openaiKey,
-        });
-
         // We'll run these in parallel for speed
         let summaries;
         try {
@@ -129,29 +124,22 @@ export async function POST(req: Request) {
 
             console.log("Text Generation Complete. Starting Image Generation...");
 
-            // 5. Generate Image (DALL-E 3) - Direct OpenAI
+            // 5. Generate Image (Google Imagen 3)
             let imageUrl = null;
             try {
-                console.log("Generating image with dall-e-3 (Direct OpenAI)...");
+                console.log("Generating image with google/imagen-3.0-generate-001...");
 
-                const imageResponse = await imageClient.images.generate({
-                    model: 'dall-e-3',
+                const { image } = await experimental_generateImage({
+                    model: google('imagen-3.0-generate-001'),
                     prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
-                    n: 1,
-                    size: "1024x1792",
+                    // aspectRatio: "9:16" // Not all providers support this field in SDK yet, putting in prompt
                 });
 
-                console.log("Imagen 3 Response:", JSON.stringify(imageResponse, null, 2));
-
-                if (imageResponse.data && imageResponse.data[0] && imageResponse.data[0].url) {
-                    imageUrl = imageResponse.data[0].url;
-                    console.log("Extracted Image URL from Imagen 3:", imageUrl);
-                } else if (imageResponse.data && imageResponse.data[0] && imageResponse.data[0].b64_json) {
-                    imageUrl = `data:image/png;base64,${imageResponse.data[0].b64_json}`;
-                    console.log("Extracted Base64 from Imagen 3");
+                if (image && image.base64) {
+                    imageUrl = `data:image/png;base64,${image.base64}`;
+                    console.log("Extracted Base64 from Google Imagen 3");
                 } else {
-                    console.log("No image URL found in Imagen 3 response.");
-                    imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop";
+                    console.log("No image data found in Google response");
                 }
 
             } catch (imgError: any) {
@@ -159,88 +147,93 @@ export async function POST(req: Request) {
                 imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"; // Fallback
             }
 
-            if (!imageUrl) {
-                console.log("No image found in response content.");
-                imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop";
-            }
-
-
-
-            summaries = {
-                structured: structuredRes,
-                spiritual: spiritualRes,
-                quote: quoteRes,
-                image_url: imageUrl,
-                image_prompt: imagePromptRes
-            };
-
-            // 6. Save to Supabase
-            try {
-                console.log("Saving to Supabase... Payload (truncated):", {
-                    ...summaries,
-                    image_url: summaries.image_url?.substring(0, 50) + "..."
-                });
-
-                const { data, error } = await supabase
-                    .from('videos')
-                    .insert([
-                        {
-                            video_url: url,
-                            title: metadata.title,
-                            channel_name: metadata.author_name,
-                            transcript: transcript,
-                            summary_structured: summaries.structured,
-                            spiritual_essence: summaries.spiritual,
-                            quote: summaries.quote,
-                            image_prompt: summaries.image_prompt,
-                            image_url: summaries.image_url,
-                        }
-                    ])
-                    .select();
-
-                if (error) {
-                    console.error("Supabase Insert Error:", error);
-                } else {
-                    console.log("Saved to Supabase:", data);
-                }
-            } catch (dbError) {
-                console.error("Supabase Save Failed:", dbError);
-            }
-
-        } catch (aiError) {
-            console.error("FULL AI ERROR:", aiError);
-            summaries = {
-                structured: "AI Generation Failed (Check Server Logs). Mock: The video covers three main points: 1. The importance of mindfulness. 2. How to practice daily gratitude. 3. The connection between inner peace and outer reality.",
-                spiritual: "AI Generation Failed. Mock: At its core, this message invites you to return to the sanctuary of your own heart.",
-                quote: "The universe is not outside of you.",
-                image_url: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop",
-                image_prompt: "A mock spiritual background."
-            };
-
-            // Attempt to save the error state to Supabase so we can see it in the DB too
-            try {
-                await supabase.from('videos').insert([{
-                    video_url: url,
-                    title: metadata.title,
-                    channel_name: metadata.author_name,
-                    transcript: transcript,
-                    summary_structured: summaries.structured,
-                    spiritual_essence: summaries.spiritual,
-                    quote: summaries.quote,
-                    image_prompt: summaries.image_prompt,
-                    image_url: summaries.image_url,
-                }]);
-            } catch (e) { console.error("Failed to save error state to DB", e); }
+        } catch (imgError: any) {
+            console.error("Image generation failed:", JSON.stringify(imgError, null, 2));
+            imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"; // Fallback
         }
 
-        return NextResponse.json({
-            metadata,
-            transcript,
-            summaries
-        });
+        if (!imageUrl) {
+            console.log("No image found in response content.");
+            imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop";
+        }
 
-    } catch (error) {
-        console.error('Error processing video:', error);
-        return NextResponse.json({ error: 'Failed to process video' }, { status: 500 });
+
+
+        summaries = {
+            structured: structuredRes,
+            spiritual: spiritualRes,
+            quote: quoteRes,
+            image_url: imageUrl,
+            image_prompt: imagePromptRes
+        };
+
+        // 6. Save to Supabase
+        try {
+            console.log("Saving to Supabase... Payload (truncated):", {
+                ...summaries,
+                image_url: summaries.image_url?.substring(0, 50) + "..."
+            });
+
+            const { data, error } = await supabase
+                .from('videos')
+                .insert([
+                    {
+                        video_url: url,
+                        title: metadata.title,
+                        channel_name: metadata.author_name,
+                        transcript: transcript,
+                        summary_structured: summaries.structured,
+                        spiritual_essence: summaries.spiritual,
+                        quote: summaries.quote,
+                        image_prompt: summaries.image_prompt,
+                        image_url: summaries.image_url,
+                    }
+                ])
+                .select();
+
+            if (error) {
+                console.error("Supabase Insert Error:", error);
+            } else {
+                console.log("Saved to Supabase:", data);
+            }
+        } catch (dbError) {
+            console.error("Supabase Save Failed:", dbError);
+        }
+
+    } catch (aiError) {
+        console.error("FULL AI ERROR:", aiError);
+        summaries = {
+            structured: "AI Generation Failed (Check Server Logs). Mock: The video covers three main points: 1. The importance of mindfulness. 2. How to practice daily gratitude. 3. The connection between inner peace and outer reality.",
+            spiritual: "AI Generation Failed. Mock: At its core, this message invites you to return to the sanctuary of your own heart.",
+            quote: "The universe is not outside of you.",
+            image_url: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop",
+            image_prompt: "A mock spiritual background."
+        };
+
+        // Attempt to save the error state to Supabase so we can see it in the DB too
+        try {
+            await supabase.from('videos').insert([{
+                video_url: url,
+                title: metadata.title,
+                channel_name: metadata.author_name,
+                transcript: transcript,
+                summary_structured: summaries.structured,
+                spiritual_essence: summaries.spiritual,
+                quote: summaries.quote,
+                image_prompt: summaries.image_prompt,
+                image_url: summaries.image_url,
+            }]);
+        } catch (e) { console.error("Failed to save error state to DB", e); }
     }
+
+    return NextResponse.json({
+        metadata,
+        transcript,
+        summaries
+    });
+
+} catch (error) {
+    console.error('Error processing video:', error);
+    return NextResponse.json({ error: 'Failed to process video' }, { status: 500 });
+}
 }
