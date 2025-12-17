@@ -166,50 +166,49 @@ export async function POST(req: Request) {
                 image_url: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"
             };
 
-            // 6. Generate Image (Using Vercel AI Gateway Credits)
+            // 6. Generate Image (Using Vercel Managed AI / Gateway Credits)
+            // Note: Managed models use the OpenAI-compatible endpoint regardless of provider
             try {
-                console.log("Attempting Image Generation via Vercel AI Gateway (using credits)...");
-                const gatewayProvider = createOpenAI({
-                    apiKey: gatewayToken || openaiKey,
-                    baseURL: gatewayUrl, // https://ai-gateway.vercel.sh/v1
-                    headers: { 'X-Vercel-AI-Provider': 'openai' }
+                console.log("Attempting Image Generation via Vercel Managed AI (Imagen 4)...");
+                const managedClient = createOpenAI({
+                    apiKey: gatewayToken,
+                    baseURL: gatewayUrl,
                 });
 
                 const { image } = await experimental_generateImage({
-                    model: gatewayProvider.image('openai/dall-e-3'),
+                    model: managedClient.image('google/imagen-4.0-generate'),
                     prompt: `9:16 aspect ratio. Cinematic spiritual background, ethereal, high quality, 8k resolution. Focus on: ${summaries.image_prompt}`,
                 });
 
                 if (image && image.base64) {
                     summaries.image_url = `data:image/png;base64,${image.base64}`;
-                    console.log("Gateway (DALL-E 3) Success.");
+                    console.log("Gateway Managed Google Success.");
                 } else if (image && image.uint8Array) {
                     summaries.image_url = `data:image/png;base64,${Buffer.from(image.uint8Array).toString('base64')}`;
-                    console.log("Gateway (DALL-E-3) Success (uint8).");
+                    console.log("Gateway Managed Google Success (uint8).");
                 }
             } catch (imgError) {
-                console.warn("Gateway OpenAI failed, attempting Gateway Google fallback...", imgError);
+                console.warn("Managed Google failed, attempting Managed DALL-E 3 fallback...", imgError);
                 try {
-                    const gatewayGoogleProvider = createGoogleGenerativeAI({
-                        apiKey: gatewayToken || process.env.GOOGLE_API_KEY,
+                    const managedClient = createOpenAI({
+                        apiKey: gatewayToken,
                         baseURL: gatewayUrl,
-                        headers: { 'X-Vercel-AI-Provider': 'google' }
                     });
 
                     const { image } = await experimental_generateImage({
-                        model: gatewayGoogleProvider.image('google/imagen-3.0-generate-001'),
-                        prompt: `9:16 aspect ratio. Spiritual, ethereal, cinematic. ${summaries.image_prompt}`,
+                        model: managedClient.image('openai/dall-e-3'),
+                        prompt: `9:16 aspect ratio. Cinematic spiritual background, ethereal, high quality, 8k resolution. Focus on: ${summaries.image_prompt}`,
                     });
 
                     if (image && image.base64) {
                         summaries.image_url = `data:image/png;base64,${image.base64}`;
-                        console.log("Gateway (Google Imagen) Success.");
+                        console.log("Gateway Managed DALL-E 3 Success.");
                     } else if (image && image.uint8Array) {
                         summaries.image_url = `data:image/png;base64,${Buffer.from(image.uint8Array).toString('base64')}`;
-                        console.log("Gateway (Google Imagen) Success (uint8).");
+                        console.log("Gateway Managed DALL-E 3 Success (uint8).");
                     }
-                } catch (googleError) {
-                    console.warn("Gateway Image Generation Failed:", googleError);
+                } catch (managedError) {
+                    console.warn("All Managed Image Generation Failed:", managedError);
                     // Fallback URL is already set
                 }
             }
