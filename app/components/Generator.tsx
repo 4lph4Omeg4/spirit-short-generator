@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Youtube, Loader2, Sparkles, FileText, Quote, Image as ImageIcon } from "lucide-react";
+import { ArrowRight, Youtube, Loader2, Sparkles, FileText, Quote, Image as ImageIcon, History, Trash2, ExternalLink } from "lucide-react";
 import clsx from "clsx";
 
 type SummaryType = "structured" | "spiritual" | "quote";
 
 interface VideoData {
+    id?: string;
     metadata: {
         title: string;
         thumbnail_url: string;
@@ -23,11 +24,205 @@ interface VideoData {
     };
 }
 
+interface HistoryItem {
+    id: string;
+    video_url: string;
+    title: string;
+    channel_name: string;
+    summary_structured: string;
+    spiritual_essence: string;
+    quote: string;
+    image_prompt: string;
+    image_url: string;
+    created_at: string;
+}
+
 export default function Generator() {
     const [url, setUrl] = useState("");
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<VideoData | null>(null);
     const [activeTab, setActiveTab] = useState<SummaryType>("spiritual");
+    const [history, setHistory] = useState<HistoryItem[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+
+    useEffect(() => {
+        fetchHistory();
+    }, []);
+
+    const fetchHistory = async () => {
+        setHistoryLoading(true);
+        try {
+            const res = await fetch('/api/videos');
+            if (res.ok) {
+                const items = await res.json();
+                setHistory(items);
+            }
+        } catch (error) {
+            console.error("Failed to fetch history:", error);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    const deleteVideo = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm("Are you sure you want to delete this generation?")) return;
+
+        try {
+            const res = await fetch('/api/videos', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+
+            if (res.ok) {
+                setHistory(history.filter(item => item.id !== id));
+                if (data?.id === id) setData(null);
+            }
+        } catch (error) {
+            console.error("Failed to delete video:", error);
+        }
+    };
+
+    const selectFromHistory = (item: HistoryItem) => {
+        setData({
+            id: item.id,
+            metadata: {
+                title: item.title,
+                thumbnail_url: `https://img.youtube.com/vi/${getYouTubeID(item.video_url)}/mqdefault.jpg`,
+                author_name: item.channel_name,
+            },
+            transcript: "", // History doesn't load full transcript to save bandwidth
+            summaries: {
+                structured: item.summary_structured,
+                spiritual: item.spiritual_essence,
+                quote: item.quote,
+                image_url: item.image_url,
+                image_prompt: item.image_prompt,
+            }
+        });
+        window.scrollTo({ top: 300, behavior: 'smooth' });
+    };
+
+    function getYouTubeID(url: string) {
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    const handleDownload = async () => {
+        if (!data?.summaries?.image_url) return;
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = data.summaries.image_url;
+
+        await new Promise((resolve) => {
+            img.onload = resolve;
+        });
+
+        // Set high-res 9:16 dimensions (e.g., 1080x1920)
+        canvas.width = 1080;
+        canvas.height = 1920;
+
+        // 1. Calculate Crop (Center-crop 9:16 from source)
+        const sourceWidth = img.width;
+        const sourceHeight = img.height;
+        const targetAspect = 9 / 16;
+        const sourceAspect = sourceWidth / sourceHeight;
+
+        let drawWidth, drawHeight, offsetX, offsetY;
+
+        if (sourceAspect > targetAspect) {
+            // Source is wider than 9:16 (e.g. square 1:1)
+            drawHeight = sourceHeight;
+            drawWidth = sourceHeight * targetAspect;
+            offsetX = (sourceWidth - drawWidth) / 2;
+            offsetY = 0;
+        } else {
+            // Source is taller than 9:16
+            drawWidth = sourceWidth;
+            drawHeight = sourceWidth / targetAspect;
+            offsetX = 0;
+            offsetY = (sourceHeight - drawHeight) / 2;
+        }
+
+        // 2. Draw Image
+        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight, 0, 0, 1080, 1920);
+
+        // 3. Draw Gradient Overlay (Bottom-up)
+        const gradient = ctx.createLinearGradient(0, 1920, 0, 1000);
+        gradient.addColorStop(0, 'rgba(0, 0, 0, 0.9)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 1000, 1080, 920);
+
+        // 4. Draw Quote
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+
+        // Custom Serif Font approximation
+        ctx.font = 'italic bold 56px Georgia, serif';
+
+        const quote = `"${data.summaries.quote}"`;
+        const maxWidth = 900;
+        const words = quote.split(' ');
+        let line = '';
+        let lines = [];
+
+        for (let n = 0; n < words.length; n++) {
+            let testLine = line + words[n] + ' ';
+            let metrics = ctx.measureText(testLine);
+            if (metrics.width > maxWidth && n > 0) {
+                lines.push(line);
+                line = words[n] + ' ';
+            } else {
+                line = testLine;
+            }
+        }
+        lines.push(line);
+
+        // Draw lines from bottom up
+        const lineHeight = 75;
+        let startY = 1650 - (lines.length - 1) * lineHeight;
+
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+
+        lines.forEach((l, i) => {
+            ctx.fillText(l.trim(), 540, startY + i * lineHeight);
+        });
+
+        // 5. Draw Branding
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '300 24px Inter, sans-serif';
+        ctx.letterSpacing = '12px';
+        ctx.fillText('TIMELINE ALCHEMY', 540, 1800);
+
+        // 6. Signature line
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(340, 1720);
+        ctx.lineTo(740, 1720);
+        ctx.stroke();
+
+        // 7. Trigger Download
+        const link = document.createElement('a');
+        link.download = `spirit-short-${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png', 1.0);
+        link.click();
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -47,6 +242,7 @@ export default function Generator() {
 
             const result = await res.json();
             setData(result);
+            fetchHistory(); // Refresh history after new generation
         } catch (error) {
             console.error(error);
             // Handle error state
@@ -202,15 +398,7 @@ export default function Generator() {
 
                             <div className="flex gap-4">
                                 <button
-                                    onClick={() => {
-                                        if (!data?.summaries?.image_url) return;
-                                        const link = document.createElement('a');
-                                        link.href = data.summaries.image_url;
-                                        link.download = `spiritual-essence-${Date.now()}.png`;
-                                        document.body.appendChild(link);
-                                        link.click();
-                                        document.body.removeChild(link);
-                                    }}
+                                    onClick={handleDownload}
                                     className="flex-1 h-12 rounded-xl bg-secondary text-foreground font-medium hover:bg-secondary/80 transition-colors"
                                 >
                                     Download Image
@@ -223,6 +411,83 @@ export default function Generator() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* History Section */}
+            <div className="mt-24">
+                <div className="flex items-center gap-2 mb-8">
+                    <History className="w-6 h-6 text-primary" />
+                    <h2 className="text-2xl font-bold text-foreground">Recent Generations</h2>
+                </div>
+
+                {historyLoading && history.length === 0 ? (
+                    <div className="flex justify-center py-12">
+                        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                    </div>
+                ) : history.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {history.map((item) => (
+                            <motion.div
+                                key={item.id}
+                                layout
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="group bg-card border border-border rounded-xl overflow-hidden hover:border-primary/50 transition-all cursor-pointer flex flex-col"
+                                onClick={() => selectFromHistory(item)}
+                            >
+                                <div className="aspect-video relative overflow-hidden">
+                                    <img
+                                        src={item.image_url}
+                                        alt={item.title}
+                                        className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <Sparkles className="w-8 h-8 text-white" />
+                                    </div>
+                                    <button
+                                        onClick={(e) => deleteVideo(item.id, e)}
+                                        className="absolute top-2 right-2 p-2 rounded-lg bg-black/60 text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <div className="p-4 flex-1 flex flex-col">
+                                    <h4 className="font-semibold text-foreground line-clamp-1 mb-1">{item.title}</h4>
+                                    <p className="text-xs text-muted-foreground mb-3">{item.channel_name}</p>
+                                    <p className="text-sm text-foreground/70 line-clamp-2 italic mb-4">
+                                        &quot;{item.quote}&quot;
+                                    </p>
+                                    <div className="mt-auto flex items-center justify-between">
+                                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                            {new Date(item.created_at).toLocaleDateString()}
+                                        </span>
+                                        <div className="flex gap-2">
+                                            <a
+                                                href={item.video_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="p-1.5 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                                            >
+                                                <ExternalLink className="w-4 h-4" />
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-20 bg-secondary/20 rounded-2xl border border-dashed border-border">
+                        <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <History className="w-8 h-8 text-primary" />
+                        </div>
+                        <h3 className="text-lg font-medium text-foreground mb-2">No history yet</h3>
+                        <p className="text-muted-foreground max-w-xs mx-auto text-sm">
+                            Generations will appear here once you start transforming videos.
+                        </p>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
