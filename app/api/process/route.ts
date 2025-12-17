@@ -78,6 +78,12 @@ export async function POST(req: Request) {
             } : {},
         });
 
+        // Client for Images (Direct OpenAI -> DALL-E 3)
+        // We bypass the gateway for images to ensure model availability
+        const imageClient = new OpenAI({
+            apiKey: openaiKey,
+        });
+
         // We'll run these in parallel for speed
         let summaries;
         try {
@@ -123,17 +129,17 @@ export async function POST(req: Request) {
 
             console.log("Text Generation Complete. Starting Image Generation...");
 
-            // 5. Generate Image (Google Imagen 3) - Via Gateway Image Generation
+            // 5. Generate Image (DALL-E 3) - Direct OpenAI
             let imageUrl = null;
             try {
-                console.log("Generating image with google/imagen-3 (Images Generate)...");
+                console.log("Generating image with dall-e-3 (Direct OpenAI)...");
 
-                const imageResponse = await textClient.images.generate({
+                const imageResponse = await imageClient.images.generate({
                     model: 'dall-e-3',
                     prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
                     n: 1,
                     size: "1024x1792",
-                }, { headers: { 'X-Vercel-AI-Provider': 'openai' } });
+                });
 
                 console.log("Imagen 3 Response:", JSON.stringify(imageResponse, null, 2));
 
