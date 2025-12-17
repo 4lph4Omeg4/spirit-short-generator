@@ -83,7 +83,6 @@ export async function POST(req: Request) {
         console.log("API Config:", {
             GatewayUrl: gatewayUrl,
             GatewayToken: gatewayToken ? "Present" : "Missing",
-            OpenAIKey: openaiKey ? "Present" : "Missing"
         });
 
         // Client for Text (Gateway -> Perplexity)
@@ -95,86 +94,114 @@ export async function POST(req: Request) {
             } : {},
         });
 
-        // AI Generation Logic
-        const googleProvider = createGoogleGenerativeAI({
-            apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
-        });
+        // 4. Research Fallback for Transcript
+        if (!transcript || transcript.includes("simulated transcript")) {
+            console.log("Transcript missing or mock. Researching video content with Perplexity...");
+            try {
+                const researchRes = await textClient.chat.completions.create({
+                    model: 'perplexity/sonar-pro',
+                    messages: [
+                        { role: 'system', content: 'You are a video researcher. Find the core message and main points of the YouTube video provided. Research the web if needed.' },
+                        { role: 'user', content: `What are the main points and the core spiritual/philosophical message of this video: ${url}? Title: ${metadata.title}` }
+                    ],
+                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } });
 
-        console.log("Starting AI Generation with Gemini...");
+                transcript = researchRes.choices[0]?.message?.content || transcript;
+                console.log("Research successful. Content fetched.");
+            } catch (researchError) {
+                console.error("Research failed:", researchError);
+            }
+        }
+
+        // 5. AI Generation Logic
+        console.log("Starting AI Generation with Perplexity...");
 
         try {
-            // Run text generations in parallel with Google
+            // Run generations in parallel
             const [structuredRes, spiritualRes, quoteRes, imagePromptRes] = await Promise.all([
                 // 1. Structured Summary
-                generateText({
-                    model: googleProvider('gemini-1.5-flash'),
-                    system: 'Output ONLY a bulleted list of 3 points. NO intro. NO outro.',
-                    prompt: `Summarize this text into 3 bullet points:\n\n${transcript.slice(0, 50000)}`
-                }).then(res => cleanSummary(res.text)),
+                textClient.chat.completions.create({
+                    model: 'perplexity/sonar-pro',
+                    messages: [
+                        { role: 'system', content: 'Output ONLY a bulleted list of 3 points. NO intro. NO outro. NO citations.' },
+                        { role: 'user', content: `Summarize this text into 3 bullet points:\n\n${transcript.slice(0, 30000)}` }
+                    ],
+                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => cleanSummary(res.choices[0]?.message?.content || "")),
 
                 // 2. Spiritual Essence
-                generateText({
-                    model: googleProvider('gemini-1.5-flash'),
-                    system: 'Output ONLY the spiritual essence text. NO intro. NO outro.',
-                    prompt: `Rewrite the soul of this message into a poetic spiritual essence:\n\n${transcript.slice(0, 50000)}`
-                }).then(res => cleanText(res.text)),
+                textClient.chat.completions.create({
+                    model: 'perplexity/sonar-pro',
+                    messages: [
+                        { role: 'system', content: 'Output ONLY the spiritual essence text. NO intro. NO outro. NO citations.' },
+                        { role: 'user', content: `Rewrite the soul of this message into a poetic spiritual essence:\n\n${transcript.slice(0, 30000)}` }
+                    ],
+                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => cleanText(res.choices[0]?.message?.content || "")),
 
                 // 3. Quote
-                generateText({
-                    model: googleProvider('gemini-1.5-flash'),
-                    system: 'Output ONLY the quote text. NO intro. NO outro.',
-                    prompt: `Extract the single best short quote from this text:\n\n${transcript.slice(0, 50000)}`
-                }).then(res => cleanText(res.text)),
+                textClient.chat.completions.create({
+                    model: 'perplexity/sonar-pro',
+                    messages: [
+                        { role: 'system', content: 'Output ONLY the quote text. NO intro. NO outro. NO citations.' },
+                        { role: 'user', content: `Extract the single best short quote from this text:\n\n${transcript.slice(0, 30000)}` }
+                    ],
+                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => cleanText(res.choices[0]?.message?.content || "")),
 
                 // 4. Visual Prompt
-                generateText({
-                    model: googleProvider('gemini-1.5-flash'),
-                    system: 'Output ONLY the image description. NO intro. NO outro.',
-                    prompt: `Describe an abstract, cinematic, spiritual background image (9:16 aspect ratio) based on the core energy of this text:\n\n${transcript.slice(0, 50000)}`
-                }).then(res => cleanText(res.text)),
+                textClient.chat.completions.create({
+                    model: 'perplexity/sonar-pro',
+                    messages: [
+                        { role: 'system', content: 'Output ONLY the image description. NO intro. NO outro. NO citations.' },
+                        { role: 'user', content: `Describe an abstract, cinematic, spiritual background image (9:16 aspect ratio) based on this text:\n\n${transcript.slice(0, 30000)}` }
+                    ],
+                }, { headers: { 'X-Vercel-AI-Provider': 'perplexity' } }).then(res => cleanText(res.choices[0]?.message?.content || "")),
             ]);
 
-            console.log("Text Generation Complete.");
+            console.log("Generation Complete.");
 
             summaries = {
                 structured: structuredRes,
                 spiritual: spiritualRes,
                 quote: quoteRes,
                 image_prompt: imagePromptRes,
-                image_url: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop" // Initial fallback
+                image_url: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"
             };
-        } catch (textError) {
-            console.error("Text Generation Error:", textError);
+
+            // 6. Generate Image (Fallback to Google if possible)
+            try {
+                console.log("Attempting Image Generation with Google Imagen...");
+                const googleProvider = createGoogleGenerativeAI({
+                    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
+                });
+
+                const { image } = await experimental_generateImage({
+                    model: googleProvider.image('imagen-3.0-generate-002'),
+                    prompt: `9:16 aspect ratio. Spiritual, ethereal, cinematic. ${summaries.image_prompt}`,
+                });
+
+                if (image && image.base64) {
+                    summaries.image_url = `data:image/png;base64,${image.base64}`;
+                    console.log("Image Success.");
+                } else if (image && image.uint8Array) {
+                    summaries.image_url = `data:image/png;base64,${Buffer.from(image.uint8Array).toString('base64')}`;
+                    console.log("Image Success (uint8).");
+                }
+            } catch (imgError) {
+                console.warn("Image Generation Skipped (Google API key likely expired/limited):", imgError);
+                // Fallback URL is already set
+            }
+
+        } catch (genError) {
+            console.error("Critical Generation Error:", genError);
             summaries = {
-                structured: "The video covers three main points: 1. The importance of mindfulness. 2. How to practice daily gratitude. 3. The connection between inner peace and outer reality.",
-                spiritual: "At its core, this message invites you to return to the sanctuary of your own heart.",
-                quote: "The universe is not outside of you.",
-                image_prompt: "An abstract spiritual background.",
+                structured: "Generation failed due to API issues. Please check your Gateway configurations.",
+                spiritual: "The soul of this video could not be processed at this time.",
+                quote: "Spirit moves in mysterious ways.",
+                image_prompt: "Abstract light.",
                 image_url: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"
             };
         }
 
-        // 5. Generate Image (Google Imagen 3)
-        try {
-            console.log("Generating image with imagen-3.0-generate-002...");
-            const { image } = await experimental_generateImage({
-                model: googleProvider.image('imagen-3.0-generate-002'),
-                prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${summaries.image_prompt}`,
-            });
-
-            if (image && image.base64) {
-                summaries.image_url = `data:image/png;base64,${image.base64}`;
-                console.log("Extracted Base64 from Google Imagen 3");
-            } else if (image && image.uint8Array) {
-                const base64 = Buffer.from(image.uint8Array).toString('base64');
-                summaries.image_url = `data:image/png;base64,${base64}`;
-                console.log("Converted Uint8Array to Base64");
-            }
-        } catch (imgError: any) {
-            console.error("Image generation failed:", imgError);
-        }
-
-        // 6. Save to Supabase
+        // 7. Save to Supabase
         try {
             console.log("Saving to Supabase...");
             const { data, error } = await supabase
@@ -184,7 +211,7 @@ export async function POST(req: Request) {
                         video_url: url,
                         title: metadata.title,
                         channel_name: metadata.author_name,
-                        transcript: transcript,
+                        transcript: transcript.substring(0, 10000), // Trim for DB
                         summary_structured: summaries.structured,
                         spiritual_essence: summaries.spiritual,
                         quote: summaries.quote,
@@ -194,11 +221,8 @@ export async function POST(req: Request) {
                 ])
                 .select();
 
-            if (error) {
-                console.error("Supabase Insert Error:", error);
-            } else {
-                console.log("Saved to Supabase:", data);
-            }
+            if (error) console.error("Supabase Error:", error);
+            else console.log("Saved.");
         } catch (dbError) {
             console.error("Supabase Save Failed:", dbError);
         }
