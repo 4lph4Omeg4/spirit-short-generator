@@ -9,22 +9,32 @@ import { supabase } from '@/lib/supabase';
 // Helper to clean AI output
 function cleanText(text: string): string {
     if (!text) return "";
-    // 1. Remove conversational prefixes
     let cleaned = text
+        // 1. Remove conversational prefixes
         .replace(/^Here is.*?:\s*/i, "")
         .replace(/^Based on.*?:\s*/i, "")
         .replace(/^Sure.*?:\s*/i, "")
         .replace(/^The quote is.*?:\s*/i, "")
         .replace(/^The essence is.*?:\s*/i, "")
-        .replace(/^"|"$/g, "") // Remove surrounding quotes first
-        .trim();
+        .replace(/^Selected quote:\s*/i, "")
 
-    // 2. Remove conversational suffixes/explanations
-    cleaned = cleaned
+        // 2. Remove Markdown emphasis and markers
+        .replace(/\*\*/g, "")
+        .replace(/\*/g, "")
+        .replace(/__/g, "")
+        .replace(/_/g, "")
+
+        // 3. Remove conversational suffixes/explanations
         .replace(/\s*This quote captures[\s\S]*$/i, "")
         .replace(/\s*This reflects[\s\S]*$/i, "")
         .replace(/\s*In this passage[\s\S]*$/i, "")
         .replace(/\[\d+\]/g, "")
+        .trim();
+
+    // 4. Aggressively remove all types of surrounding quotes at the very end
+    // This catches quotes that were hidden behind suffixes or spaces
+    cleaned = cleaned
+        .replace(/^["'“”‘’«»]+|["'“”‘’«»]+$/g, "")
         .trim();
 
     return cleaned;
@@ -36,6 +46,8 @@ function cleanSummary(text: string): string {
     let cleaned = text
         .replace(/^Here is.*?:\s*/i, "")
         .replace(/^Based on.*?:\s*/i, "")
+        .replace(/\*\*/g, "")
+        .replace(/\*/g, "")
         .replace(/\[\d+\]/g, "")
         .trim();
     return cleaned;

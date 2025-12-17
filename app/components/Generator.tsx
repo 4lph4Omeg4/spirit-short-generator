@@ -169,7 +169,7 @@ export default function Generator() {
         // Custom Serif Font approximation
         ctx.font = 'italic bold 56px Georgia, serif';
 
-        const quote = `"${data.summaries.quote}"`;
+        const quote = data.summaries.quote;
         const maxWidth = 900;
         const words = quote.split(' ');
         let line = '';
@@ -367,7 +367,7 @@ export default function Generator() {
                                     <ImageIcon className="w-4 h-4" /> Visual Prompt
                                 </h4>
                                 <p className="text-sm text-muted-foreground italic">
-                                    &quot;{data.summaries.image_prompt}&quot;
+                                    {data.summaries.image_prompt}
                                 </p>
                             </div>
                         </div>
@@ -388,7 +388,7 @@ export default function Generator() {
                                 {/* Overlay Text */}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-8 text-center">
                                     <p className="text-white text-xl font-bold drop-shadow-lg font-serif italic leading-relaxed">
-                                        &quot;{data.summaries.quote}&quot;
+                                        {data.summaries.quote}
                                     </p>
                                     <div className="mt-4 pt-4 border-t border-white/20">
                                         <p className="text-white/60 text-xs uppercase tracking-widest">Timeline Alchemy</p>
