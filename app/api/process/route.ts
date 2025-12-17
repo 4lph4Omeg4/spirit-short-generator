@@ -169,12 +169,19 @@ export async function POST(req: Request) {
             // 6. Generate Image (Fallback to Google if possible)
             try {
                 console.log("Attempting Image Generation with Google Imagen...");
+                const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+                console.log("Using Google API Key from:",
+                    process.env.GOOGLE_GENERATIVE_AI_API_KEY ? "GOOGLE_GENERATIVE_AI_API_KEY" :
+                        process.env.GOOGLE_API_KEY ? "GOOGLE_API_KEY" :
+                            process.env.GEMINI_API_KEY ? "GEMINI_API_KEY" : "NONE"
+                );
+
                 const googleProvider = createGoogleGenerativeAI({
-                    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
+                    apiKey: apiKey,
                 });
 
                 const { image } = await experimental_generateImage({
-                    model: googleProvider.image('imagen-3.0-generate-002'),
+                    model: googleProvider.image('imagen-3.0-fast-generate-001'),
                     prompt: `9:16 aspect ratio. Spiritual, ethereal, cinematic. ${summaries.image_prompt}`,
                 });
 
