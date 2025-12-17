@@ -166,17 +166,15 @@ export async function POST(req: Request) {
                 image_url: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop"
             };
 
-            // 6. Generate Image (Prioritize DALL-E 3 via Gateway as Google keys are expired)
+            // 6. Generate Image (Directly via OpenAI DALL-E 3 as the key is verified working)
             try {
-                console.log("Attempting Image Generation with DALL-E 3 via Gateway...");
-                const openaiProvider = createOpenAI({
-                    apiKey: gatewayToken || openaiKey,
-                    baseURL: gatewayUrl,
-                    headers: { 'X-Vercel-AI-Provider': 'openai' }
+                console.log("Attempting Image Generation with DALL-E 3...");
+                const directOpenAI = createOpenAI({
+                    apiKey: openaiKey,
                 });
 
                 const { image } = await experimental_generateImage({
-                    model: openaiProvider.image('dall-e-3'),
+                    model: directOpenAI.image('dall-e-3'),
                     prompt: `9:16 aspect ratio. Cinematic spiritual background, ethereal, high quality, 8k resolution. Focus on: ${summaries.image_prompt}`,
                 });
 
@@ -209,7 +207,7 @@ export async function POST(req: Request) {
                         console.log("Google Imagen Success (uint8).");
                     }
                 } catch (imgError) {
-                    console.warn("Image Generation Skipped (Google API key likely expired/limited):", imgError);
+                    console.warn("Image Generation Skipped:", imgError);
                     // Fallback URL is already set
                 }
             }
