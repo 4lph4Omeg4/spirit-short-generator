@@ -3,7 +3,7 @@ import { getVideoMetadata, getTranscript } from '@/lib/youtube';
 import OpenAI from 'openai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText, experimental_generateImage } from 'ai';
-import { google } from '@ai-sdk/google';
+import { google, createGoogleGenerativeAI } from '@ai-sdk/google';
 import { supabase } from '@/lib/supabase';
 
 // Helper to clean AI output
@@ -142,20 +142,28 @@ export async function POST(req: Request) {
             // 5. Generate Image (Google Imagen 3)
             let imageUrl: string | null = null;
             try {
-                console.log("Generating image with google/imagen-3.0-generate-001...");
+                const googleProvider = createGoogleGenerativeAI({
+                    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
+                });
+
+                console.log("Generating image with imagen-3.0-generate-001...");
                 const { image } = await experimental_generateImage({
-                    model: google('imagen-3.0-generate-001') as any,
+                    model: googleProvider.image('imagen-3.0-generate-001'),
                     prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
                 });
 
                 if (image && image.base64) {
                     imageUrl = `data:image/png;base64,${image.base64}`;
                     console.log("Extracted Base64 from Google Imagen 3");
+                } else if (image && image.uint8Array) {
+                    const base64 = Buffer.from(image.uint8Array).toString('base64');
+                    imageUrl = `data:image/png;base64,${base64}`;
+                    console.log("Converted Uint8Array to Base64");
                 } else {
                     console.log("No image data found in Google response");
                 }
             } catch (imgError: any) {
-                console.error("Image generation failed:", JSON.stringify(imgError, null, 2));
+                console.error("Image generation failed:", imgError);
                 imageUrl = "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?q=80&w=1000&auto=format&fit=crop";
             }
 
