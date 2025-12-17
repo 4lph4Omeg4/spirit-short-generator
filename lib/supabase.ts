@@ -10,4 +10,8 @@ if (!supabaseUrl || !supabaseKey) {
     console.log("Supabase Client Initialized with URL:", supabaseUrl.substring(0, 20) + "...");
 }
 
-export const supabase = createClient(supabaseUrl || 'https://auth.timeline-alchemy.nl', supabaseKey || 'placeholder');
+if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase credentials missing! Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file.");
+}
+
+export const supabase = createClient(supabaseUrl, supabaseKey);

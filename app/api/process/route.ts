@@ -129,11 +129,11 @@ export async function POST(req: Request) {
                 console.log("Generating image with google/imagen-3 (Images Generate)...");
 
                 const imageResponse = await textClient.images.generate({
-                    model: 'google/imagen-3',
+                    model: 'dall-e-3',
                     prompt: `Vertical 9:16 aspect ratio. Spiritual, ethereal, cinematic, 8k resolution. ${imagePromptRes}`,
                     n: 1,
                     size: "1024x1792",
-                }, { headers: { 'X-Vercel-AI-Provider': 'google' } });
+                }, { headers: { 'X-Vercel-AI-Provider': 'openai' } });
 
                 console.log("Imagen 3 Response:", JSON.stringify(imageResponse, null, 2));
 
