@@ -2,9 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Youtube, Loader2, Sparkles, FileText, Quote, Image as ImageIcon, History, Trash2, ExternalLink } from "lucide-react";
+import {
+    Youtube, Loader2, Sparkles, FileText,
+    Quote, Image as ImageIcon, History, Trash2,
+    Settings2, Sliders, ChevronLeft,
+    ChevronRight, Download, RefreshCw, Layers
+} from "lucide-react";
 import clsx from "clsx";
 
+/**
+ * Types & Interfaces
+ */
 type SummaryType = "structured" | "spiritual" | "quote";
 
 interface VideoData {
@@ -37,18 +45,37 @@ interface HistoryItem {
     created_at: string;
 }
 
+/**
+ * Main Generator Component
+ * A multidimensional interface inspired by Zen-minimalism, Arc, and Vision Pro.
+ */
 export default function Generator() {
+    // UI State
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [activeTab, setActiveTab] = useState<SummaryType>("spiritual");
+    const [isConfigOpen, setIsConfigOpen] = useState(false);
+
+    // Data State
     const [url, setUrl] = useState("");
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<VideoData | null>(null);
-    const [activeTab, setActiveTab] = useState<SummaryType>("spiritual");
     const [history, setHistory] = useState<HistoryItem[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+
+    // Configuration State
+    const [config, setConfig] = useState({
+        vibe: "ethereal",
+        length: "balanced",
+        depth: 70,
+    });
 
     useEffect(() => {
         fetchHistory();
     }, []);
 
+    /**
+     * Data Logic
+     */
     const fetchHistory = async () => {
         setHistoryLoading(true);
         try {
@@ -92,7 +119,7 @@ export default function Generator() {
                 thumbnail_url: `https://img.youtube.com/vi/${getYouTubeID(item.video_url)}/mqdefault.jpg`,
                 author_name: item.channel_name,
             },
-            transcript: "", // History doesn't load full transcript to save bandwidth
+            transcript: "",
             summaries: {
                 structured: item.summary_structured,
                 spiritual: item.spiritual_essence,
@@ -101,14 +128,39 @@ export default function Generator() {
                 image_prompt: item.image_prompt,
             }
         });
-        window.scrollTo({ top: 300, behavior: 'smooth' });
     };
 
-    function getYouTubeID(url: string) {
+    function getYouTubeID(url_str: string) {
         const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-        const match = url.match(regExp);
+        const match = url_str.match(regExp);
         return (match && match[2].length === 11) ? match[2] : null;
     }
+
+    const handleSubmit = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!url) return;
+
+        setLoading(true);
+        setData(null);
+
+        try {
+            const res = await fetch('/api/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url, config })
+            });
+
+            if (!res.ok) throw new Error('Failed to process');
+
+            const result = await res.json();
+            setData(result);
+            fetchHistory();
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleDownload = async () => {
         if (!data?.summaries?.image_url) return;
@@ -125,11 +177,9 @@ export default function Generator() {
             img.onload = resolve;
         });
 
-        // Set high-res 9:16 dimensions (e.g., 1080x1920)
         canvas.width = 1080;
         canvas.height = 1920;
 
-        // 1. Calculate Crop (Center-crop 9:16 from source)
         const sourceWidth = img.width;
         const sourceHeight = img.height;
         const targetAspect = 9 / 16;
@@ -138,40 +188,33 @@ export default function Generator() {
         let drawWidth, drawHeight, offsetX, offsetY;
 
         if (sourceAspect > targetAspect) {
-            // Source is wider than 9:16 (e.g. square 1:1)
             drawHeight = sourceHeight;
             drawWidth = sourceHeight * targetAspect;
             offsetX = (sourceWidth - drawWidth) / 2;
             offsetY = 0;
         } else {
-            // Source is taller than 9:16
             drawWidth = sourceWidth;
             drawHeight = sourceWidth / targetAspect;
             offsetX = 0;
             offsetY = (sourceHeight - drawHeight) / 2;
         }
 
-        // 2. Draw Image
         ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight, 0, 0, 1080, 1920);
 
-        // 3. Draw Gradient Overlay (Bottom-up)
         const gradient = ctx.createLinearGradient(0, 1920, 0, 1000);
         gradient.addColorStop(0, 'rgba(0, 0, 0, 0.9)');
         gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 1000, 1080, 920);
 
-        // 4. Draw Quote
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-
-        // Custom Serif Font approximation
         ctx.font = 'italic bold 56px Georgia, serif';
 
-        const quote = data.summaries.quote;
+        const quote_text = data.summaries.quote;
         const maxWidth = 900;
-        const words = quote.split(' ');
+        const words = quote_text.split(' ');
         let line = '';
         const lines = [];
 
@@ -187,7 +230,6 @@ export default function Generator() {
         }
         lines.push(line);
 
-        // Draw lines from bottom up
         const lineHeight = 75;
         const startY = 1650 - (lines.length - 1) * lineHeight;
 
@@ -200,7 +242,6 @@ export default function Generator() {
             ctx.fillText(l.trim(), 540, startY + i * lineHeight);
         });
 
-        // 5. Draw Branding
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
@@ -209,7 +250,6 @@ export default function Generator() {
         ctx.letterSpacing = '12px';
         ctx.fillText('TIMELINE ALCHEMY', 540, 1800);
 
-        // 6. Signature line
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -217,281 +257,362 @@ export default function Generator() {
         ctx.lineTo(740, 1720);
         ctx.stroke();
 
-        // 7. Trigger Download
-        const link = document.createElement('a');
-        link.download = `spirit-short-${Date.now()}.png`;
-        link.href = canvas.toDataURL('image/png', 1.0);
-        link.click();
+        const download_link = document.createElement('a');
+        download_link.download = `spirit-short-${Date.now()}.png`;
+        download_link.href = canvas.toDataURL('image/png', 1.0);
+        download_link.click();
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!url) return;
-
-        setLoading(true);
-        setData(null);
-
-        try {
-            const res = await fetch('/api/process', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
-            });
-
-            if (!res.ok) throw new Error('Failed to process');
-
-            const result = await res.json();
-            setData(result);
-            fetchHistory(); // Refresh history after new generation
-        } catch (error) {
-            console.error(error);
-            // Handle error state
-        } finally {
-            setLoading(false);
-        }
-    };
-
+    /**
+     * Render
+     */
     return (
-        <div className="w-full max-w-4xl mx-auto mt-12 px-4 pb-20">
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="text-center mb-12"
+        <div className="flex h-screen w-full bg-background overflow-hidden relative">
+            {/* Sidebar (History) */}
+            <motion.aside
+                initial={false}
+                animate={{ width: isSidebarOpen ? 320 : 0, opacity: isSidebarOpen ? 1 : 0 }}
+                className="glass-panel border-r border-border shrink-0 z-20 overflow-hidden hidden md:flex flex-col"
             >
-                <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-primary via-amber-200 to-primary">
-                    Spirit Shorts Generator
-                </h1>
-                <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-                    Transform long-form spiritual content into resonant short videos.
-                    Blend factual clarity with poetic essence.
-                </p>
-            </motion.div>
+                <div className="p-6 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <History className="w-5 h-5 text-primary" />
+                        <h2 className="font-semibold text-sm uppercase tracking-widest text-primary">History</h2>
+                    </div>
+                </div>
 
-            <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2, duration: 0.5 }}
-                className="relative z-10 mb-12"
-            >
-                <div className="bg-card border border-border rounded-2xl p-2 shadow-2xl shadow-primary/5">
-                    <form onSubmit={handleSubmit} className="flex items-center gap-2">
-                        <div className="pl-4 text-red-500">
-                            <Youtube className="w-6 h-6" />
+                <div className="flex-1 overflow-y-auto px-4 pb-6 scrollbar-hide space-y-4">
+                    {historyLoading && history.length === 0 ? (
+                        <div className="flex items-center justify-center py-12">
+                            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                         </div>
+                    ) : history.length > 0 ? (
+                        history.map((item) => (
+                            <motion.div
+                                key={item.id}
+                                layout
+                                onClick={() => selectFromHistory(item)}
+                                className="group relative glass-panel rounded-xl overflow-hidden cursor-pointer hover:border-primary/50 transition-all p-2"
+                            >
+                                <div className="aspect-video rounded-lg overflow-hidden relative mb-3">
+                                    <img src={item.image_url} alt="" className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <Sparkles className="w-6 h-6 text-white" />
+                                    </div>
+                                </div>
+                                <div className="px-2">
+                                    <h4 className="text-xs font-medium line-clamp-1 mb-1">{item.title}</h4>
+                                    <p className="text-[10px] text-muted-foreground">{new Date(item.created_at).toLocaleDateString()}</p>
+                                </div>
+                                <button
+                                    onClick={(e) => deleteVideo(item.id, e)}
+                                    className="absolute top-2 right-2 p-1.5 rounded-md bg-black/60 text-white/50 hover:text-white hover:bg-red-500/80 transition-all opacity-0 group-hover:opacity-100"
+                                    title="Delete"
+                                >
+                                    <Trash2 className="w-3 h-3" />
+                                </button>
+                            </motion.div>
+                        ))
+                    ) : (
+                        <p className="text-center text-xs text-muted-foreground py-12">No generations yet.</p>
+                    )}
+                </div>
+            </motion.aside>
+
+            {/* Main Content Area */}
+            <main className="flex-1 flex flex-col min-w-0 relative">
+                {/* Header / URL Input */}
+                <header className="h-20 border-b border-border flex items-center px-6 gap-4 z-10 bg-background/50 backdrop-blur-md">
+                    <button
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground"
+                        aria-label={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
+                    >
+                        {isSidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
+                    </button>
+
+                    <form onSubmit={handleSubmit} className="flex-1 max-w-2xl mx-auto flex items-center gap-3 glass-panel rounded-full px-4 py-1.5 border-border/50 shadow-sm">
+                        <Youtube className="w-5 h-5 text-red-500 shrink-0" />
                         <input
                             type="text"
                             value={url}
                             onChange={(e) => setUrl(e.target.value)}
-                            placeholder="Paste YouTube URL here..."
-                            className="flex-1 bg-transparent border-none outline-none h-14 text-lg placeholder:text-muted-foreground/50 text-foreground"
+                            placeholder="Enter YouTube URL for transformation..."
+                            className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground/60 focus:ring-0"
                         />
                         <button
                             type="submit"
                             disabled={loading || !url}
-                            className="h-12 px-8 rounded-xl bg-primary text-background font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            className="h-8 px-4 rounded-full bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2 active:scale-95"
                         >
-                            {loading ? (
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                            ) : (
-                                <>
-                                    Generate <ArrowRight className="w-5 h-5" />
-                                </>
-                            )}
+                            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Sparkles className="w-3 h-3" /> Generate</>}
                         </button>
                     </form>
-                </div>
-            </motion.div>
 
-            <AnimatePresence>
-                {data && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 40 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
-                        className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+                    <button
+                        onClick={() => setIsConfigOpen(!isConfigOpen)}
+                        className={clsx(
+                            "p-2 rounded-lg transition-all",
+                            isConfigOpen ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+                        )}
+                        aria-label="Configuration"
                     >
-                        {/* Left Column: Summaries */}
-                        <div className="space-y-6">
-                            <div className="flex items-center gap-4 mb-4">
-                                <img
-                                    src={data.metadata.thumbnail_url}
-                                    alt={data.metadata.title}
-                                    className="w-16 h-16 rounded-lg object-cover border border-border"
-                                />
-                                <div>
-                                    <h3 className="font-semibold line-clamp-1 text-foreground">{data.metadata.title}</h3>
-                                    <p className="text-sm text-muted-foreground">{data.metadata.author_name}</p>
+                        <Settings2 size={20} />
+                    </button>
+                </header>
+
+                {/* Stage Area */}
+                <div className="flex-1 overflow-y-auto p-6 md:p-12 scrollbar-hide">
+                    {!data && !loading && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-8"
+                        >
+                            <div className="relative">
+                                <div className="w-24 h-24 rounded-3xl ritual-gradient flex items-center justify-center shadow-2xl shadow-primary/40 rotate-12" />
+                                <div className="absolute inset-0 w-24 h-24 rounded-3xl glass-panel flex items-center justify-center -rotate-6 -translate-x-2 -translate-y-2 translate-z-10">
+                                    <Layers className="w-10 h-10 text-primary" />
                                 </div>
                             </div>
-
-                            <div className="bg-card border border-border rounded-2xl overflow-hidden">
-                                <div className="flex border-b border-border">
-                                    {[
-                                        { id: "structured", label: "Structured", icon: FileText },
-                                        { id: "spiritual", label: "Spiritual", icon: Sparkles },
-                                        { id: "quote", label: "Quote", icon: Quote },
-                                    ].map((tab) => (
-                                        <button
-                                            key={tab.id}
-                                            onClick={() => setActiveTab(tab.id as SummaryType)}
-                                            className={clsx(
-                                                "flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium transition-colors",
-                                                activeTab === tab.id
-                                                    ? "bg-primary/10 text-primary border-b-2 border-primary"
-                                                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                                            )}
-                                        >
-                                            <tab.icon className="w-4 h-4" />
-                                            {tab.label}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="p-6 min-h-[200px]">
-                                    <motion.div
-                                        key={activeTab}
-                                        initial={{ opacity: 0, x: 10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ duration: 0.3 }}
-                                    >
-                                        <p className="text-lg leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                                            {data.summaries[activeTab]}
-                                        </p>
-                                    </motion.div>
-                                </div>
-                            </div>
-
-                            {/* Image Prompt Section */}
-                            <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
-                                <h4 className="font-semibold text-primary flex items-center gap-2 mb-2">
-                                    <ImageIcon className="w-4 h-4" /> Visual Prompt
-                                </h4>
-                                <p className="text-sm text-muted-foreground italic">
-                                    {data.summaries.image_prompt}
+                            <div>
+                                <h1 className="text-4xl font-bold mb-4 tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-foreground to-muted-foreground">
+                                    Ritual of Essence
+                                </h1>
+                                <p className="text-muted-foreground leading-relaxed text-lg">
+                                    Paste a link above to begin the extraction of spiritual wisdom.
+                                    Our alchemist will distill facts into poetry.
                                 </p>
                             </div>
-                        </div>
+                        </motion.div>
+                    )}
 
-                        {/* Right Column: Generated Visual */}
-                        <div className="space-y-6">
-                            <h3 className="text-xl font-semibold flex items-center gap-2">
-                                <Sparkles className="w-5 h-5 text-primary" /> Generated Visual Essence
-                            </h3>
-                            <div className="aspect-[9/16] bg-black rounded-2xl border border-border overflow-hidden relative group shadow-2xl">
-                                {/* Generated Image */}
-                                <img
-                                    src={data.summaries.image_url}
-                                    alt="Generated Spiritual Essence"
-                                    className="absolute inset-0 w-full h-full object-cover"
-                                />
-
-                                {/* Overlay Text */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-8 text-center">
-                                    <p className="text-white text-xl font-bold drop-shadow-lg font-serif italic leading-relaxed">
-                                        {data.summaries.quote}
-                                    </p>
-                                    <div className="mt-4 pt-4 border-t border-white/20">
-                                        <p className="text-white/60 text-xs uppercase tracking-widest">Timeline Alchemy</p>
-                                    </div>
+                    {loading && (
+                        <div className="h-full flex flex-col items-center justify-center space-y-12">
+                            <div className="relative">
+                                <div className="w-32 h-32 rounded-full border-2 border-primary/5 border-t-primary animate-spin" />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <Sparkles className="w-10 h-10 text-primary animate-pulse" />
                                 </div>
                             </div>
-
-                            <div className="flex gap-4">
-                                <button
-                                    onClick={handleDownload}
-                                    className="flex-1 h-12 rounded-xl bg-secondary text-foreground font-medium hover:bg-secondary/80 transition-colors"
-                                >
-                                    Download Image
-                                </button>
-                                <button className="flex-1 h-12 rounded-xl bg-primary text-background font-medium hover:bg-primary/90 transition-colors">
-                                    Generate Audio (Coming Soon)
-                                </button>
+                            <div className="text-center space-y-2">
+                                <p className="text-2xl font-light tracking-[0.2em] text-primary uppercase">Distilling Essence</p>
+                                <p className="text-sm text-muted-foreground font-serif italic">Connecting to the multidimensional field...</p>
                             </div>
                         </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                    )}
 
-            {/* History Section */}
-            <div className="mt-24">
-                <div className="flex items-center gap-2 mb-8">
-                    <History className="w-6 h-6 text-primary" />
-                    <h2 className="text-2xl font-bold text-foreground">Recent Generations</h2>
-                </div>
-
-                {historyLoading && history.length === 0 ? (
-                    <div className="flex justify-center py-12">
-                        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                    </div>
-                ) : history.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {history.map((item) => (
+                    <AnimatePresence mode="wait">
+                        {data && (
                             <motion.div
-                                key={item.id}
-                                layout
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="group bg-card border border-border rounded-xl overflow-hidden hover:border-primary/50 transition-all cursor-pointer flex flex-col"
-                                onClick={() => selectFromHistory(item)}
+                                initial={{ opacity: 0, y: 30 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                className="grid grid-cols-1 xl:grid-cols-12 gap-12 max-w-7xl mx-auto items-start"
                             >
-                                <div className="aspect-video relative overflow-hidden">
-                                    <img
-                                        src={item.image_url}
-                                        alt={item.title}
-                                        className="w-full h-full object-cover transition-transform group-hover:scale-110"
-                                    />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                        <Sparkles className="w-8 h-8 text-white" />
-                                    </div>
-                                    <button
-                                        onClick={(e) => deleteVideo(item.id, e)}
-                                        className="absolute top-2 right-2 p-2 rounded-lg bg-black/60 text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                        title="Delete generation"
-                                        aria-label="Delete generation"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                                <div className="p-4 flex-1 flex flex-col">
-                                    <h4 className="font-semibold text-foreground line-clamp-1 mb-1">{item.title}</h4>
-                                    <p className="text-xs text-muted-foreground mb-3">{item.channel_name}</p>
-                                    <p className="text-sm text-foreground/70 line-clamp-2 italic mb-4">
-                                        &quot;{item.quote}&quot;
-                                    </p>
-                                    <div className="mt-auto flex items-center justify-between">
-                                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                                            {new Date(item.created_at).toLocaleDateString()}
-                                        </span>
-                                        <div className="flex gap-2">
-                                            <a
-                                                href={item.video_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="p-1.5 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                                                title="Open YouTube video"
-                                                aria-label="Open YouTube video"
-                                            >
-                                                <ExternalLink className="w-4 h-4" />
-                                            </a>
+                                {/* Results: Left Side */}
+                                <div className="xl:col-span-7 space-y-8">
+                                    <div className="flex items-center gap-6">
+                                        <div className="w-16 h-16 rounded-2xl overflow-hidden glass-panel shrink-0 shadow-lg">
+                                            <img src={data.metadata.thumbnail_url} alt="" className="w-full h-full object-cover" />
                                         </div>
+                                        <div>
+                                            <h2 className="font-bold text-xl line-clamp-1">{data.metadata.title}</h2>
+                                            <p className="text-sm text-muted-foreground font-serif">{data.metadata.author_name}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="glass-panel rounded-[2.5rem] overflow-hidden shadow-xl border-border/40">
+                                        <div className="flex p-3 bg-muted/20 backdrop-blur-sm border-b border-border/40">
+                                            {[
+                                                { id: "spiritual", label: "Essence", icon: Sparkles },
+                                                { id: "quote", label: "Oracle", icon: Quote },
+                                                { id: "structured", label: "Context", icon: FileText },
+                                            ].map((tab) => (
+                                                <button
+                                                    key={tab.id}
+                                                    onClick={() => setActiveTab(tab.id as SummaryType)}
+                                                    className={clsx(
+                                                        "flex-1 flex items-center justify-center gap-2 py-3.5 text-[11px] uppercase tracking-widest font-bold rounded-2xl transition-all",
+                                                        activeTab === tab.id
+                                                            ? "bg-background text-primary shadow-md shadow-black/5"
+                                                            : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                                                    )}
+                                                >
+                                                    <tab.icon className="w-4 h-4" />
+                                                    {tab.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="p-10 md:p-14">
+                                            <motion.p
+                                                key={activeTab}
+                                                initial={{ opacity: 0, x: 20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                className="text-xl md:text-2xl leading-[1.6] font-serif italic text-foreground/90 whitespace-pre-wrap selection:bg-primary/20"
+                                            >
+                                                {activeTab === 'quote' ? `"${data.summaries[activeTab]}"` : data.summaries[activeTab]}
+                                            </motion.p>
+                                        </div>
+                                    </div>
+
+                                    <div className="glass-panel p-8 rounded-3xl border-primary/20 bg-primary/[0.02]">
+                                        <div className="flex items-center gap-3 mb-4 text-primary">
+                                            <ImageIcon size={20} className="animate-pulse" />
+                                            <span className="text-[11px] font-bold uppercase tracking-[0.3em]">Visual Incantation</span>
+                                        </div>
+                                        <p className="text-sm md:text-base text-muted-foreground italic leading-relaxed">
+                                            {data.summaries.image_prompt}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Preview: Right Side */}
+                                <div className="xl:col-span-5 space-y-8 sticky top-12">
+                                    <div className="aspect-[9/16] ritual-gradient rounded-[3rem] p-1.5 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)] overflow-hidden relative group">
+                                        <div className="absolute inset-0 rounded-[2.8rem] overflow-hidden bg-black">
+                                            <motion.img
+                                                initial={{ scale: 1.1 }}
+                                                animate={{ scale: 1 }}
+                                                transition={{ duration: 10, repeat: Infinity, repeatType: "reverse" }}
+                                                src={data.summaries.image_url}
+                                                alt="Generated"
+                                                className="w-full h-full object-cover opacity-90"
+                                            />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent p-12 flex flex-col justify-end text-center">
+                                                <p className="text-white text-3xl font-bold font-serif italic leading-snug drop-shadow-2xl mb-8">
+                                                    {data.summaries.quote}
+                                                </p>
+                                                <div className="pt-8 border-t border-white/20">
+                                                    <p className="text-white/40 text-[10px] uppercase tracking-[0.5em] font-light">Timeline Alchemy</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-4">
+                                        <button
+                                            onClick={handleDownload}
+                                            className="flex-1 h-14 rounded-2xl glass-panel hover:bg-muted font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95"
+                                        >
+                                            <Download className="w-5 h-5" /> Download
+                                        </button>
+                                        <button
+                                            onClick={() => handleSubmit()}
+                                            className="flex-1 h-14 rounded-2xl ritual-gradient text-white font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl shadow-primary/20 hover:shadow-primary/40 hover:opacity-95 transition-all active:scale-95"
+                                        >
+                                            <RefreshCw className="w-5 h-5" /> Regenerate
+                                        </button>
                                     </div>
                                 </div>
                             </motion.div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="text-center py-20 bg-secondary/20 rounded-2xl border border-dashed border-border">
-                        <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <History className="w-8 h-8 text-primary" />
-                        </div>
-                        <h3 className="text-lg font-medium text-foreground mb-2">No history yet</h3>
-                        <p className="text-muted-foreground max-w-xs mx-auto text-sm">
-                            Generations will appear here once you start transforming videos.
-                        </p>
-                    </div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            </main>
+
+            {/* Config Panel (Side Drawer) */}
+            <AnimatePresence>
+                {isConfigOpen && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsConfigOpen(false)}
+                            className="absolute inset-0 bg-black/40 backdrop-blur-md z-30"
+                        />
+                        <motion.aside
+                            initial={{ x: "100%" }}
+                            animate={{ x: 0 }}
+                            exit={{ x: "100%" }}
+                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                            className="absolute right-0 top-0 bottom-0 w-[380px] glass-panel border-l border-border/50 z-40 p-10 flex flex-col gap-10 shadow-[0_0_80px_rgba(0,0,0,0.3)] bg-background/80"
+                        >
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-bold text-lg flex items-center gap-3">
+                                    <Sliders className="w-5 h-5 text-primary" /> Parameters
+                                </h3>
+                                <button
+                                    onClick={() => setIsConfigOpen(false)}
+                                    className="p-2 hover:bg-muted rounded-xl shrink-0 transition-colors"
+                                    title="Close configuration"
+                                    aria-label="Close configuration"
+                                >
+                                    <ChevronRight size={20} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-10">
+                                <div className="space-y-4">
+                                    <label className="text-[10px] uppercase tracking-[0.2em] font-black text-primary">Vibrational Vibe</label>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {['ethereal', 'grounded', 'cosmic', 'zen'].map((v) => (
+                                            <button
+                                                key={v}
+                                                onClick={() => setConfig({ ...config, vibe: v })}
+                                                className={clsx(
+                                                    "w-full h-12 flex items-center px-4 rounded-xl text-sm font-medium capitalize transition-all border",
+                                                    config.vibe === v
+                                                        ? "bg-primary/10 border-primary/50 text-primary shadow-inner shadow-primary/5"
+                                                        : "bg-muted/30 border-transparent hover:bg-muted"
+                                                )}
+                                            >
+                                                {v}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <label htmlFor="spiritual-depth" className="text-[10px] uppercase tracking-[0.2em] font-black text-primary">Spiritual Depth</label>
+                                        <span className="text-xs font-mono font-bold text-primary">{config.depth}%</span>
+                                    </div>
+                                    <input
+                                        id="spiritual-depth"
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        value={config.depth}
+                                        onChange={(e) => setConfig({ ...config, depth: parseInt(e.target.value) })}
+                                        className="w-full accent-primary bg-muted h-1 rounded-full appearance-none cursor-pointer"
+                                        title="Adjust Spiritual Depth"
+                                    />
+                                </div>
+
+                                <div className="space-y-4">
+                                    <label className="text-[10px] uppercase tracking-[0.2em] font-black text-primary">Dilation</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {['balanced', 'insightful'].map((len) => (
+                                            <button
+                                                key={len}
+                                                onClick={() => setConfig({ ...config, length: len })}
+                                                className={clsx(
+                                                    "h-14 rounded-2xl text-[11px] uppercase tracking-widest font-bold border transition-all",
+                                                    config.length === len
+                                                        ? "bg-primary/10 border-primary text-primary shadow-sm"
+                                                        : "border-border/50 hover:border-muted-foreground/30 text-muted-foreground"
+                                                )}
+                                            >
+                                                {len}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-auto p-6 rounded-3xl bg-primary/5 border border-primary/10 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] text-primary font-black uppercase tracking-tighter mb-1">Ether Status</p>
+                                    <p className="text-xs font-bold">Resonance Synced</p>
+                                </div>
+                                <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.5)] animate-pulse" />
+                            </div>
+                        </motion.aside>
+                    </>
                 )}
-            </div>
+            </AnimatePresence>
         </div>
     );
 }
