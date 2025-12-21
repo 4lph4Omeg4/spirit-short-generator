@@ -173,11 +173,11 @@ export default function Generator() {
         const maxWidth = 900;
         const words = quote.split(' ');
         let line = '';
-        let lines = [];
+        const lines = [];
 
         for (let n = 0; n < words.length; n++) {
-            let testLine = line + words[n] + ' ';
-            let metrics = ctx.measureText(testLine);
+            const testLine = line + words[n] + ' ';
+            const metrics = ctx.measureText(testLine);
             if (metrics.width > maxWidth && n > 0) {
                 lines.push(line);
                 line = words[n] + ' ';
@@ -189,7 +189,7 @@ export default function Generator() {
 
         // Draw lines from bottom up
         const lineHeight = 75;
-        let startY = 1650 - (lines.length - 1) * lineHeight;
+        const startY = 1650 - (lines.length - 1) * lineHeight;
 
         ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
         ctx.shadowBlur = 10;
@@ -446,6 +446,8 @@ export default function Generator() {
                                     <button
                                         onClick={(e) => deleteVideo(item.id, e)}
                                         className="absolute top-2 right-2 p-2 rounded-lg bg-black/60 text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                        title="Delete generation"
+                                        aria-label="Delete generation"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </button>
@@ -467,6 +469,8 @@ export default function Generator() {
                                                 rel="noopener noreferrer"
                                                 onClick={(e) => e.stopPropagation()}
                                                 className="p-1.5 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                                                title="Open YouTube video"
+                                                aria-label="Open YouTube video"
                                             >
                                                 <ExternalLink className="w-4 h-4" />
                                             </a>
